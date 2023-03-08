@@ -54,3 +54,4 @@ dkms.conf
 *.jpg
 *.txt
 *.eml
+*.data

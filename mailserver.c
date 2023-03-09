@@ -51,7 +51,7 @@ ServerThread glPool[MAX_CLIENTS];
 
 void intHandler(int notUsed){
     LOCK_OUT();
-    fprintf(stderr, "Сервер останавливается. . .\n");
+    fprintf(stderr, "Server is stopping. . .\n");
     UNLOCK_OUT();
 
     LOCK_TH();
@@ -118,7 +118,7 @@ void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int pro
 void StopProcessingClient(LocalThreadInfo *lThInfo){
     // Лучше обращаться по указателю к глобальному пулу потоков
     // Т.к. мы все равно блочим мьютекс для обновления данных по доступности потока
-    PLTH_REPORT(lThInfo, "Окончил работу.\nПоследнее содержимое буфера:\n===\n%s===\n", lThInfo->buff);
+    PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
 
     LOCK_TH();
     closesocket(lThInfo->pthreadInfo->client);
@@ -152,7 +152,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        PLTH_REPORT(lThInfo, "Отсутствует имя пользователя в сообщении\n");
+        PLTH_REPORT(lThInfo, "No username in message\n");
         SendERR(lThInfo->threadInfo.client, " should provide user name");
         return 1;
     }
@@ -167,14 +167,14 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     for(index = 0; index < usersInList; index++){
         if(strncmp(glUserList[index].name, &lThInfo->buff[startOfName], maxFunc(strlen(glUserList[index].name), nameLen)) == 0){
             if(glUserList[index].isLogged){
-                PLTH_REPORT(lThInfo, "Попытка авторизации под именем активного на данный момент пользователя(%s)\n", glUserList[index].name);
+                PLTH_REPORT(lThInfo, "User is already logged in(%s)\n", glUserList[index].name);
                 SendERR(lThInfo->threadInfo.client, " User already logged in");
                 return 1;
             }
             SendOK(lThInfo->threadInfo.client, NULL);
             lThInfo->user = glUserList[index];
             lThInfo->haveUser = TRUE;
-            PLTH_REPORT(lThInfo, "Пользователь найден в базе\n");
+            PLTH_REPORT(lThInfo, "User was found\n");
             break;
         }
     }
@@ -182,7 +182,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     if(index == usersInList){
         char back = lThInfo->buff[endOfName];
         lThInfo->buff[endOfName] = '\0';
-        PLTH_REPORT(lThInfo, "Ошибка - пользователь(%s) не найден\n", lThInfo->buff+startOfName);
+        PLTH_REPORT(lThInfo, "No such user(%s)\n", lThInfo->buff+startOfName);
         lThInfo->buff[endOfName] = back;
         SendERR(lThInfo->threadInfo.client, " no such user");
         return 1;
@@ -200,7 +200,7 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        PLTH_REPORT(lThInfo, "Пароль не предоставлен\n");
+        PLTH_REPORT(lThInfo, "No password in message\n");
         SendERR(lThInfo->threadInfo.client, " should provide password");
         return 1;
     }
@@ -211,11 +211,11 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
     int endOfPass = index;
     int passLen = endOfPass - startOfPass;
     if(strncmp(&lThInfo->buff[startOfPass], lThInfo->user.pass, maxFunc(strlen(lThInfo->user.pass), passLen)) == 0){
-        PLTH_REPORT(lThInfo, "Авторизация успешна\n");
+        PLTH_REPORT(lThInfo, "AUTH OK\n");
         SendOK(lThInfo->threadInfo.client, " Logged in");
         return 0;
     }
-    PLTH_REPORT(lThInfo, "Неверный пароль\n");
+    PLTH_REPORT(lThInfo, "Wrong password\n");
     SendERR(lThInfo->threadInfo.client, " Wrong password");
     return 1;
 }
@@ -392,16 +392,16 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3);
 
 
-    PLTH_REPORT(&lThInfo, "Подключился новый клиент POP3\n");
+    PLTH_REPORT(&lThInfo, "Connected new POP3 client\n");
 
     SendOK(lThInfo.threadInfo.client, NULL);
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            PLTH_REPORT(&lThInfo, "Сокет закрыт\n");
+            PLTH_REPORT(&lThInfo, "Socket was closed\n");
             break;
         }
 
-        PLTH_REPORT(&lThInfo, "Новое сообщение: %s", lThInfo.buff);
+        PLTH_REPORT(&lThInfo, "New message: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "USER")){
             POP3CommandUSER(&lThInfo);
@@ -480,7 +480,7 @@ DWORD WINAPI SMTPCommandMAILFROM(LocalThreadInfo *lThInfo){
     }
     lThInfo->smtpData->FROM = calloc(nameLen+1, sizeof(char));
     memcpy(lThInfo->smtpData->FROM, &lThInfo->buff[startOfName], nameLen);
-    PLTH_REPORT(lThInfo, "Письмо от <%s>\n", lThInfo->smtpData->FROM);
+    PLTH_REPORT(lThInfo, "Mail from <%s>\n", lThInfo->smtpData->FROM);
 
     return 0;
 }
@@ -505,7 +505,7 @@ DWORD WINAPI SMTPCommandRCPTTO(LocalThreadInfo *lThInfo){
     }
     lThInfo->smtpData->TO = calloc(nameLen+1, sizeof(char));
     memcpy(lThInfo->smtpData->TO, &lThInfo->buff[startOfName], nameLen);
-    PLTH_REPORT(lThInfo, "Письмо для <%s>\n", lThInfo->smtpData->TO);
+    PLTH_REPORT(lThInfo, "Mail to <%s>\n", lThInfo->smtpData->TO);
 
     return 0;
 }
@@ -530,9 +530,9 @@ DWORD WINAPI SMTPCommandDATA(LocalThreadInfo *lThInfo){
         lThInfo->smtpData->DATA[lThInfo->smtpData->dataSize] = '\0';
         if(strstr((lThInfo->smtpData->dataSize-ret-5 >= 0 ? lThInfo->smtpData->DATA+lThInfo->smtpData->dataSize-ret-5 : lThInfo->smtpData->DATA+lThInfo->smtpData->dataSize-ret), "\015\012.\015\012") != NULL){
             if(lThInfo->smtpData->dataSize > BUFF_SIZE*2){
-                PLTH_REPORT(lThInfo, "Получено письмо. Оно не будет отображено, т.к имеет слишком большой размер");
+                PLTH_REPORT(lThInfo, "Got mail. No preview - mail is too big\n");
             } else {
-                PLTH_REPORT(lThInfo, "Получено письмо:\n%s", lThInfo->smtpData->DATA);
+                PLTH_REPORT(lThInfo, "Got mail. Preview:\n%s", lThInfo->smtpData->DATA);
             }
 
             LOCK_FL();
@@ -576,13 +576,13 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
 
     int nameLen = 0;
     char *name = Base64Decode(lThInfo->buff, lThInfo->size-2, &nameLen);
-    PLTH_REPORT(lThInfo, "Декодированное имя: %*s\n", nameLen, name);
+    PLTH_REPORT(lThInfo, "Decoded username: %*s\n", nameLen, name);
 
     send(lThInfo->threadInfo.client, "334 UGFzc3dvcmQ6\015\012", 18, 0x0);
     ReadUntilCRLF(lThInfo->threadInfo.client, lThInfo->buff, &lThInfo->size);
     int passLen = 0;
     char *pass = Base64Decode(lThInfo->buff, lThInfo->size-2, &passLen);
-    PLTH_REPORT(lThInfo, "Декодированный пароль: %*s\n", passLen, pass);
+    PLTH_REPORT(lThInfo, "Decoded password: %*s\n", passLen, pass);
 
     int index = 0;
     int retStatus = 0;
@@ -590,16 +590,16 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     for(index = 0; index < usersInList; index++){
         if(strncmp(glUserList[index].name, name, max(strlen(glUserList[index].name), nameLen)) == 0){
             if(glUserList[index].isLogged){
-                PLTH_REPORT(lThInfo, "Попытка авторизации под именем активного на данный момент пользователя(%s)\n", glUserList[index].name);
+                PLTH_REPORT(lThInfo, "User already logged in(%s)\n", glUserList[index].name);
                 SMTPSendTempError(lThInfo->threadInfo.client, " User already logged in");
             }
             lThInfo->haveUser = 1;
             lThInfo->user = glUserList[index];
             if(strncmp(pass, lThInfo->user.pass, max(strlen(glUserList[index].name), passLen)) == 0){
-                PLTH_REPORT(lThInfo, "Авторизация успешна\n");
+                PLTH_REPORT(lThInfo, "AUTH OK\n");
                 lThInfo->havePass = 1;
             } else{
-                PLTH_REPORT(lThInfo, "Неверный пароль\n");
+                PLTH_REPORT(lThInfo, "Wrong password\n");
                 SMTPSendTempError(lThInfo->threadInfo.client, " wrong password");
                 retStatus = 1;
             }
@@ -608,7 +608,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     }
     UNLOCK_TH();
     if(index == usersInList){
-        PLTH_REPORT(lThInfo, "Пользователь(%*s) отсутствует\n", nameLen, name);
+        PLTH_REPORT(lThInfo, "No such user(%*s)\n", nameLen, name);
         SMTPSendTempError(lThInfo->threadInfo.client, " no such user");
         retStatus = 1;
     }
@@ -622,20 +622,20 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
 
-    PLTH_REPORT(&lThInfo, "Подключился новый клиент SMTP\n");
+    PLTH_REPORT(&lThInfo, "Connected new SMTP client\n");
 
     send(lThInfo.threadInfo.client, "220\015\012", 5, 0x0);
 
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            PLTH_REPORT(&lThInfo, "Сокет закрыт\n");
+            PLTH_REPORT(&lThInfo, "Socket was closed\n");
             break;
         }
-        PLTH_REPORT(&lThInfo, "Новое сообщение: %s", lThInfo.buff);
+        PLTH_REPORT(&lThInfo, "New message: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "EHLO")){
             if(SMTPCommandEHLO(&lThInfo) == 0){
-                PLTH_REPORT(&lThInfo, "Доменное имя клиента: %s\n", lThInfo.domainName);
+                PLTH_REPORT(&lThInfo, "Client domain name: %s\n", lThInfo.domainName);
                 SMTPSendOK(lThInfo.threadInfo.client, "-Mailserver");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH LOGIN");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH=LOGIN");
@@ -678,7 +678,7 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
 DWORD WINAPI SMTPService(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
-    PLTH_REPORT(&lThInfo, "SMTP служба работает\n");
+    PLTH_REPORT(&lThInfo, "SMTP service is ON\n");
     while(keepRunning){
         SOCKET client = accept(lThInfo.threadInfo.client, NULL, NULL);
         int wasFound = 0;
@@ -701,7 +701,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             }
         }
     }
-    PLTH_REPORT(&lThInfo, "SMTP остановила прием новых сообщений\n");
+    PLTH_REPORT(&lThInfo, "SMTP service stopped accept new connections\n");
     StopProcessingClient(&lThInfo);
 
     return 0;
@@ -717,7 +717,7 @@ int main(int argc, char **argv){
     if(glUserList == NULL){
         MY_ERROR("No users!", -1);
     }
-    printf("Список пользователей загружен\n");
+    printf("User list was loaded\n");
 
     signal(SIGINT, intHandler);
     WSADATA wsaData;
@@ -748,7 +748,7 @@ int main(int argc, char **argv){
     glOutputMutex = CreateMutex(NULL, FALSE, NULL);
     glThreadMutex = CreateMutex(NULL, FALSE, NULL);
     glFileMutex = CreateMutex(NULL, FALSE, NULL);
-    printf("POP3 служба работает\n");
+    printf("POP3 service is ON\n");
 
     glPool[SMTP_SERVICE].isFree = 0;
     glPool[SMTP_SERVICE].client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -790,8 +790,8 @@ int main(int argc, char **argv){
     // новые соединения
     // Нужно учесть, что при завершении нужно также остановить прием SMTP сессией, когда они добавятся
     LOCK_OUT();
-    printf("POP3 служба остановила прием новых соединений\n");
-    printf("Ожидание завершения всех потоков. . .\n");
+    printf("POP3 service stopped accept new connections\n");
+    printf("Waiting for all threads to terminate. . .\n");
     UNLOCK_OUT();
     for(int i = 0; i < MAX_CLIENTS; i++){
         LOCK_TH();
@@ -802,7 +802,7 @@ int main(int argc, char **argv){
         UNLOCK_TH();
     }
     LOCK_OUT();
-    printf("Сервер остановлен успешно\n");
+    printf("Server was stopped successfully\n");
     UNLOCK_OUT();
 
     CloseHandle(glFileMutex);

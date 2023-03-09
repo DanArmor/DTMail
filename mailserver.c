@@ -25,22 +25,26 @@
 #define REPORT_FORMAT "%s: TH#%d: "
 
 #define LTH_REPORT(lThInfo, format, ...)\
+    do{\
     LOCK_OUT();\
         if(lThInfo.haveUser){\
             fprintf(stderr, REPORT_FORMAT_USER format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, lThInfo.user.name, ##__VA_ARGS__);\
         }else{\
             fprintf(stderr, REPORT_FORMAT format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, ##__VA_ARGS__);\
         }\
-    UNLOCK_OUT()
+    UNLOCK_OUT();\
+    }while(0)
 
 #define PLTH_REPORT(lThInfo, format, ...)\
+    do{\
     LOCK_OUT();\
-        if(lThInfo.haveUser){\
-            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo->id, lThInfo->user.name, ##__VA_ARGS__);\
+        if(lThInfo->haveUser){\
+            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo->threadInfo.id, lThInfo->user.name, ##__VA_ARGS__);\
         }else{\
             fprintf(stderr, REPORT_FORMAT format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo->threadInfo.id, ##__VA_ARGS__);\
         }\
-    UNLOCK_OUT()
+    UNLOCK_OUT();\
+    }while(0)
 
 int maxFunc(int a, int b){
     return a > b ? a : b;
@@ -55,8 +59,9 @@ ServerThread glPool[MAX_CLIENTS];
 
 void intHandler(int notUsed){
     LOCK_OUT();
-    printf("Сервер останавливается. . .\n");
+    fprintf(stderr, "Сервер останавливается. . .\n");
     UNLOCK_OUT();
+
     LOCK_TH();
     keepRunning = 0;
     closesocket(glPool[SMTP_SERVICE].client);
@@ -71,7 +76,7 @@ UserInfo *ReadUsersFromFile(char *filename, int *nUsers){
     FILE *f = fopen(filename, "rb");
     fread(nUsers, sizeof(int), 1, f);
     if(*nUsers == 0){
-        printf("No users in file!\n");
+        fprintf(stderr, "No users in file!\n");
         return NULL;
     }
     UserInfo *users = calloc(*nUsers, sizeof(UserInfo));
@@ -121,19 +126,7 @@ void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int pro
 void StopProcessingClient(LocalThreadInfo *lThInfo){
     // Лучше обращаться по указателю к глобальному пулу потоков
     // Т.к. мы все равно блочим мьютекс для обновления данных по доступности потока
-    LOCK_OUT();
-    if(lThInfo->protocol == PROTOCOL_SMTP){
-        printf("SMTP: ");
-    } else if(lThInfo->protocol == PROTOCOL_POP3){
-        printf("POP3: ");
-    }
-    printf("Поток #%p окончил работу\n", lThInfo->threadInfo.handle);
-    if(lThInfo->havePass){
-        printf(" Имя пользователя %s\n", lThInfo->user.name);
-    }
-    printf(" Последнее содержимое буфера: %s", lThInfo->buff);
-    printf("\n-------\n");
-    UNLOCK_OUT();
+    PLTH_REPORT(lThInfo, "Окончил работу.\nПоследнее содержимое буфера:\n===\n%s===\n", lThInfo->buff);
 
     LOCK_TH();
     closesocket(lThInfo->pthreadInfo->client);
@@ -181,17 +174,14 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     for(index = 0; index < usersInList; index++){
         if(strncmp(glUserList[index].name, &lThInfo->buff[startOfName], maxFunc(strlen(glUserList[index].name), nameLen)) == 0){
             if(glUserList[index].isLogged){
-                LOCK_OUT();
-                printf("POP3: AUTH FAIL(%s) ALREADY LOGGED IN\n", glUserList[index].name);
-                UNLOCK_OUT();
+                PLTH_REPORT(lThInfo, "Попытка авторизации под именем активного на данный момент пользователя(%s)\n", glUserList[index].name);
                 SendERR(lThInfo->threadInfo.client, " User already logged in");
                 return 1;
             }
             SendOK(lThInfo->threadInfo.client, NULL);
             lThInfo->user = glUserList[index];
-            LOCK_OUT();
-            printf("POP3: AUTH PARTLY OK(%s) - USER WAS FOUND\n", glUserList[index].name);
-            UNLOCK_OUT();
+            lThInfo->haveUser = TRUE;
+            PLTH_REPORT(lThInfo, "Пользователь найден в базе\n");
             break;
         }
     }
@@ -199,9 +189,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     if(index == usersInList){
         char back = lThInfo->buff[endOfName];
         lThInfo->buff[endOfName] = '\0';
-        LOCK_OUT();
-        printf("POP3: AUTH FAIL(%s)\n", lThInfo->buff);
-        UNLOCK_OUT();
+        PLTH_REPORT(lThInfo, "Ошибка - пользователь(%s) не найден\n", lThInfo->buff+startOfName);
         lThInfo->buff[endOfName] = back;
         SendERR(lThInfo->threadInfo.client, " no such user");
         return 1;
@@ -219,9 +207,7 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        LOCK_OUT();
-        printf("POP3: AUTH FAIL(%s) - NO PASSWORD\n", lThInfo->user.name);
-        UNLOCK_OUT();
+        PLTH_REPORT(lThInfo, "Пароль не предоставлен\n");
         SendERR(lThInfo->threadInfo.client, " should provide password");
         return 1;
     }
@@ -232,15 +218,11 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
     int endOfPass = index;
     int passLen = endOfPass - startOfPass;
     if(strncmp(&lThInfo->buff[startOfPass], lThInfo->user.pass, maxFunc(strlen(lThInfo->user.pass), passLen)) == 0){
-        LOCK_OUT();
-        printf("POP3: AUTH OK(%s) - PASS IS OK\n", lThInfo->user.name);
-        UNLOCK_OUT();
+        PLTH_REPORT(lThInfo, "Авторизация успешна\n");
         SendOK(lThInfo->threadInfo.client, " Logged in");
         return 0;
     }
-    LOCK_OUT();
-    printf("POP3: AUTH FAIL(%s) - WRONG PASSWORD\n", lThInfo->user.name);
-    UNLOCK_OUT();
+    PLTH_REPORT(lThInfo, "Неверный пароль\n");
     SendERR(lThInfo->threadInfo.client, " Wrong password");
     return 1;
 }
@@ -407,7 +389,7 @@ DWORD WINAPI POP3CommandSTAT(LocalThreadInfo *lThInfo){
 
     sprintf(buff, " %d %d", userMessages, totalSize);
     SendOK(lThInfo->threadInfo.client, buff);
-    printf("POP3: Поток #%p (%s) STAT OK: %s\n", lThInfo->user.name, lThInfo->user.name, buff);
+    PLTH_REPORT(lThInfo, "STAT OK -%s\n", buff);
 
     return 0;
 }
@@ -422,18 +404,14 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
     SendOK(lThInfo.threadInfo.client, NULL);
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            LOCK_OUT();
-            printf("POP3: Поток #%p сокет закрыт\n", lThInfo.threadInfo.handle);
-            UNLOCK_OUT();
+            LTH_REPORT(lThInfo, "Сокет закрыт\n");
             break;
         }
 
         LTH_REPORT(lThInfo, "Новое сообщение: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "USER")){
-            if(POP3CommandUSER(&lThInfo) == 0){
-                lThInfo.haveUser = 1;
-            }
+            POP3CommandUSER(&lThInfo);
         } else if(IsServerCommand(&lThInfo, "PASS")){
             if(lThInfo.haveUser == 0){
                 SendERR(lThInfo.threadInfo.client, " Provide USER first");
@@ -509,7 +487,7 @@ DWORD WINAPI SMTPCommandMAILFROM(LocalThreadInfo *lThInfo){
     }
     lThInfo->smtpData->FROM = calloc(nameLen+1, sizeof(char));
     memcpy(lThInfo->smtpData->FROM, &lThInfo->buff[startOfName], nameLen);
-    printf("SMTP: FROM %s\n", lThInfo->smtpData->FROM);
+    PLTH_REPORT(lThInfo, "Письмо от <%s>\n", lThInfo->smtpData->FROM);
 
     return 0;
 }
@@ -534,7 +512,7 @@ DWORD WINAPI SMTPCommandRCPTTO(LocalThreadInfo *lThInfo){
     }
     lThInfo->smtpData->TO = calloc(nameLen+1, sizeof(char));
     memcpy(lThInfo->smtpData->TO, &lThInfo->buff[startOfName], nameLen);
-    printf("SMTP: TO %s\n", lThInfo->smtpData->TO);
+    PLTH_REPORT(lThInfo, "Письмо для <%s>\n", lThInfo->smtpData->TO);
 
     return 0;
 }
@@ -558,13 +536,11 @@ DWORD WINAPI SMTPCommandDATA(LocalThreadInfo *lThInfo){
         }
         lThInfo->smtpData->DATA[lThInfo->smtpData->dataSize] = '\0';
         if(strstr((lThInfo->smtpData->dataSize-ret-5 >= 0 ? lThInfo->smtpData->DATA+lThInfo->smtpData->dataSize-ret-5 : lThInfo->smtpData->DATA+lThInfo->smtpData->dataSize-ret), "\015\012.\015\012") != NULL){
-            LOCK_OUT();
             if(lThInfo->smtpData->dataSize > BUFF_SIZE*2){
-                printf("SMTP: Поток#%p получил письмо(%s):  Письмо не будет отображено, т.к. оно слишком большое\n", lThInfo->threadInfo.handle, lThInfo->domainName);
+                PLTH_REPORT(lThInfo, "Получено письмо. Оно не будет отображено, т.к имеет слишком большой размер");
             } else {
-                printf("SMTP: Поток#%p получил письмо(%s):\n%s\n", lThInfo->threadInfo.handle, lThInfo->domainName, lThInfo->smtpData->DATA);
+                PLTH_REPORT(lThInfo, "Получено письмо:\n%s", lThInfo->smtpData->DATA);
             }
-            UNLOCK_OUT();
 
             LOCK_FL();
 
@@ -607,17 +583,13 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
 
     int nameLen = 0;
     char *name = Base64Decode(lThInfo->buff, lThInfo->size-2, &nameLen);
-    LOCK_OUT();
-    printf("SMTP: Поток #%p декодировано имя(%d): %s\n", lThInfo->threadInfo.handle, nameLen, name);
-    UNLOCK_OUT();
+    PLTH_REPORT(lThInfo, "Декодированное имя: %*s\n", nameLen, name);
 
     send(lThInfo->threadInfo.client, "334 UGFzc3dvcmQ6\015\012", 18, 0x0);
     ReadUntilCRLF(lThInfo->threadInfo.client, lThInfo->buff, &lThInfo->size);
     int passLen = 0;
     char *pass = Base64Decode(lThInfo->buff, lThInfo->size-2, &passLen);
-    LOCK_OUT();
-    printf("SMTP: Поток #%p декодированый пароль(%d): %s\n", lThInfo->threadInfo.handle, passLen, pass);
-    UNLOCK_OUT();
+    PLTH_REPORT(lThInfo, "Декодированный пароль: %*s\n", passLen, pass);
 
     int index = 0;
     int retStatus = 0;
@@ -625,16 +597,16 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     for(index = 0; index < usersInList; index++){
         if(strncmp(glUserList[index].name, name, max(strlen(glUserList[index].name), nameLen)) == 0){
             if(glUserList[index].isLogged){
-                printf(" SMTP: AUTH FAIL(%s) - ALREADY LOGGED IN\n", name);
+                PLTH_REPORT(lThInfo, "Попытка авторизации под именем активного на данный момент пользователя(%s)\n", glUserList[index].name);
                 SMTPSendTempError(lThInfo->threadInfo.client, " User already logged in");
             }
             lThInfo->haveUser = 1;
             lThInfo->user = glUserList[index];
             if(strncmp(pass, lThInfo->user.pass, max(strlen(glUserList[index].name), passLen)) == 0){
-                printf(" SMTP: AUTH OK(%s)\n", name);
+                PLTH_REPORT(lThInfo, "Авторизация успешна\n");
                 lThInfo->havePass = 1;
             } else{
-                printf(" SMTP: AUTH FAIL(%s) WRONG PASSWORD\n", name);
+                PLTH_REPORT(lThInfo, "Неверный пароль\n");
                 SMTPSendTempError(lThInfo->threadInfo.client, " wrong password");
                 retStatus = 1;
             }
@@ -643,7 +615,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     }
     UNLOCK_TH();
     if(index == usersInList){
-        printf(" SMTP: AUTH FAIL(%s) - NO SUCH USER\n", name);
+        PLTH_REPORT(lThInfo, "Пользователь(%*s) отсутствует\n", nameLen, name);
         SMTPSendTempError(lThInfo->threadInfo.client, " no such user");
         retStatus = 1;
     }
@@ -657,29 +629,20 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
 
-
-    LOCK_OUT();
-    printf("Подключился новый клиент SMTP\n");
-    UNLOCK_OUT();
+    LTH_REPORT(lThInfo, "Подключился новый клиент SMTP\n");
 
     send(lThInfo.threadInfo.client, "220\015\012", 5, 0x0);
 
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            LOCK_OUT();
-            printf("SMTP: Поток #%p сокет закрыт\n", lThInfo.threadInfo.handle);
-            UNLOCK_OUT();
+            LTH_REPORT(lThInfo, "Сокет закрыт\n");
             break;
         }
-        LOCK_OUT();
-        printf("SMTP: Поток #%p получено сообщение: %s", lThInfo.threadInfo.handle, lThInfo.buff);
-        UNLOCK_OUT();
+        LTH_REPORT(lThInfo, "Новое сообщение: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "EHLO")){
             if(SMTPCommandEHLO(&lThInfo) == 0){
-                LOCK_OUT();
-                printf("SMTP: Поток #%p. Доменное имя клиента получено:\n  %s\n", lThInfo.threadInfo.handle, lThInfo.domainName);
-                UNLOCK_OUT();
+                LTH_REPORT(lThInfo, "Доменное имя клиента: %s\n", lThInfo.domainName);
                 SMTPSendOK(lThInfo.threadInfo.client, "-Mailserver");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH LOGIN");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH=LOGIN");
@@ -722,9 +685,7 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
 DWORD WINAPI SMTPService(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
-    LOCK_OUT();
-    printf("SMTP служба работает\n");
-    UNLOCK_OUT();
+    LTH_REPORT(lThInfo, "SMTP служба работает\n");
     while(keepRunning){
         SOCKET client = accept(lThInfo.threadInfo.client, NULL, NULL);
         int wasFound = 0;
@@ -747,9 +708,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             }
         }
     }
-    LOCK_OUT();
-    printf("SMTP служба остановила прием новых соединений\n");
-    UNLOCK_OUT();
+    LTH_REPORT(lThInfo, "SMTP остановила прием новых сообщений\n");
     StopProcessingClient(&lThInfo);
 
     return 0;
@@ -852,6 +811,7 @@ int main(int argc, char **argv){
     LOCK_OUT();
     printf("Сервер остановлен успешно\n");
     UNLOCK_OUT();
+
     CloseHandle(glFileMutex);
     CloseHandle(glOutputMutex);
     CloseHandle(glThreadMutex);

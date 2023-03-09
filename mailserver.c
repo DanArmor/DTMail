@@ -14,6 +14,16 @@
 
 #include "Graphics/iup.h"
 
+char errorBuffer[512];
+
+#define MY_GUI_ERROR(msg, status)\
+    do{\
+        sprintf(errorBuffer, "%s %d", msg, status);\
+        IupMessage("Error!", errorBuffer);\
+        IupClose();\
+        exit(status);\
+    }while(0)
+
 #define MAX_CLIENTS 100
 #define SMTP_SERVICE (MAX_CLIENTS-1)
 #define POP3_SERVICE (MAX_CLIENTS-2)
@@ -750,34 +760,59 @@ DWORD WINAPI POP3Service(LPVOID lpParameter){
     return 0;
 }
 
+void POP3Up(void){
+    glPool[POP3_SERVICE].isFree = 0;
+    glPool[POP3_SERVICE].client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if(glPool[POP3_SERVICE].client == INVALID_SOCKET){
+        MY_GUI_ERROR("Error during creating TCP socket", glPool[POP3_SERVICE].client);
+    }
+    SOCKADDR_IN serverAddr = {.sin_family = AF_INET, .sin_port = htons(POP3_SERVER_PORT), .sin_addr.S_un.S_addr = INADDR_ANY};
+    int status = bind(glPool[POP3_SERVICE].client, (PSOCKADDR)&serverAddr, sizeof(SOCKADDR_IN));
+    if(status == SOCKET_ERROR){
+        MY_GUI_ERROR("Error during binding POP3 socket - check port 110", status);
+    }
+
+    status = listen(glPool[POP3_SERVICE].client, MAX_CLIENTS);
+    if(status == SOCKET_ERROR){
+        MY_GUI_ERROR("Error during start of listening POP3", status);
+    }
+}
+
+void SMTPUp(void){
+    glPool[SMTP_SERVICE].isFree = 0;
+    glPool[SMTP_SERVICE].client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    SOCKADDR_IN serverAddr = {.sin_family = AF_INET, .sin_port = htons(SMTP_SERVER_PORT), .sin_addr.S_un.S_addr = INADDR_ANY};
+    int status = bind(glPool[SMTP_SERVICE].client, (PSOCKADDR)&serverAddr, sizeof(SOCKADDR_IN));
+    if(status == SOCKET_ERROR){
+        MY_GUI_ERROR("Error during binding SMTP socket - check port 25", status);
+    }
+    status = listen(glPool[SMTP_SERVICE].client, MAX_CLIENTS);
+    if(status == SOCKET_ERROR){
+        MY_GUI_ERROR("Error during start of listening SMTP", status);
+    }
+}
+
 
 // Нам не нужно синхронизировать приходы от SMTP и POP3 сессии, т.к. мы не будем выгружать в буферы
 // сообщения пользователей во время старта сессии - а читать их по требованию
 int main(int argc, char **argv){
 
-    fprintf(stderr, "hello world");
     if(IupOpen(&argc, &argv) == IUP_ERROR){
         fprintf(stderr, "Error opening IUP.A");
         return 1;
     }
-    
-    IupMessage("Hello World 1", "Hello world from IUP.");
-    
-    IupClose();
 
-    SetConsoleCP(CP_UTF8);
-    SetConsoleOutputCP(CP_UTF8);
     glUserList = ReadUsersFromFile(USER_DATA_FILE, &usersInList);
     if(glUserList == NULL){
-        MY_ERROR("No users!", -1);
+        MY_GUI_ERROR("No users!", -1);
     }
-    printf("User list was loaded\n");
-
+    fprintf(stderr, "User list was loaded\n");
+    
     signal(SIGINT, intHandler);
     WSADATA wsaData;
 	int status = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if(status != 0){
-		MY_ERROR("WSAStartup failed", status);
+		MY_GUI_ERROR("WSAStartup failed", status);
 	}
 
 
@@ -789,34 +824,8 @@ int main(int argc, char **argv){
     glThreadMutex = CreateMutex(NULL, FALSE, NULL);
     glFileMutex = CreateMutex(NULL, FALSE, NULL);
 
-    glPool[POP3_SERVICE].isFree = 0;
-    glPool[POP3_SERVICE].client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if(glPool[POP3_SERVICE].client == INVALID_SOCKET){
-        MY_ERROR("Error during creating TCP socket", glPool[POP3_SERVICE].client);
-    }
-    SOCKADDR_IN serverAddr = {.sin_family = AF_INET, .sin_port = htons(POP3_SERVER_PORT), .sin_addr.S_un.S_addr = INADDR_ANY};
-    status = bind(glPool[POP3_SERVICE].client, (PSOCKADDR)&serverAddr, sizeof(SOCKADDR_IN));
-    if(status == SOCKET_ERROR){
-        MY_ERROR("Error during binding POP3 socket - check port 110", status);
-    }
-
-    status = listen(glPool[POP3_SERVICE].client, MAX_CLIENTS);
-    if(status == SOCKET_ERROR){
-        MY_ERROR("Error during start of listening POP3", status);
-    }
-
-    glPool[SMTP_SERVICE].isFree = 0;
-    glPool[SMTP_SERVICE].client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    serverAddr.sin_port = htons(SMTP_SERVER_PORT);
-    status = bind(glPool[SMTP_SERVICE].client, (PSOCKADDR)&serverAddr, sizeof(SOCKADDR_IN));
-    if(status == SOCKET_ERROR){
-        MY_ERROR("Error during binding SMTP socket - check port 25", status);
-    }
-    status = listen(glPool[SMTP_SERVICE].client, MAX_CLIENTS);
-    if(status == SOCKET_ERROR){
-        MY_ERROR("Error during start of listening SMTP", status);
-    }
-
+    POP3Up();
+    SMTPUp();
 
     glPool[SMTP_SERVICE].handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SMTPService, (LPVOID)&glPool[SMTP_SERVICE], 0, NULL);
     glPool[POP3_SERVICE].handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)POP3Service, (LPVOID)&glPool[POP3_SERVICE], 0, NULL);
@@ -857,5 +866,6 @@ int main(int argc, char **argv){
     CloseHandle(glOutputMutex);
     CloseHandle(glThreadMutex);
     WSACleanup();
+    IupClose();
     return 0;
 }

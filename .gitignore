@@ -52,7 +52,9 @@ Mkfile.old
 dkms.conf
 
 *.jpg
-*.txt
 *.eml
 *.data
 .vscode/
+build/
+etc/
+Graphics/

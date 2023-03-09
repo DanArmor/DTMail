@@ -12,6 +12,8 @@
 
 #include "util.h"
 
+#include "Graphics/iup.h"
+
 #define MAX_CLIENTS 100
 #define SMTP_SERVICE (MAX_CLIENTS-1)
 #define POP3_SERVICE (MAX_CLIENTS-2)
@@ -752,6 +754,17 @@ DWORD WINAPI POP3Service(LPVOID lpParameter){
 // Нам не нужно синхронизировать приходы от SMTP и POP3 сессии, т.к. мы не будем выгружать в буферы
 // сообщения пользователей во время старта сессии - а читать их по требованию
 int main(int argc, char **argv){
+
+    fprintf(stderr, "hello world");
+    if(IupOpen(&argc, &argv) == IUP_ERROR){
+        fprintf(stderr, "Error opening IUP.A");
+        return 1;
+    }
+    
+    IupMessage("Hello World 1", "Hello world from IUP.");
+    
+    IupClose();
+
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     glUserList = ReadUsersFromFile(USER_DATA_FILE, &usersInList);
@@ -812,6 +825,10 @@ int main(int argc, char **argv){
     HANDLE POP3_handle = glPool[POP3_SERVICE].handle;
     HANDLE SMTP_handle = glPool[SMTP_SERVICE].handle;
     UNLOCK_TH();
+
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+
 
     WaitForSingleObject(POP3_handle, INFINITE);
     WaitForSingleObject(SMTP_handle, INFINITE);

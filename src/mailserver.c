@@ -18,14 +18,6 @@
 
 char errorBuffer[512];
 
-#define MY_GUI_ERROR(msg, status)\
-    do{\
-        sprintf(errorBuffer, "%s %d", msg, status);\
-        IupMessage("Error!", errorBuffer);\
-        IupClose();\
-        exit(status);\
-    }while(0)
-
 int keepRunning = 1;
 int isGuiRunning = 1;
 HANDLE glOutputMutex;

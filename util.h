@@ -10,6 +10,39 @@
 #include <Windows.h>
 #include <iphlpapi.h>
 
+#include "Graphics/iup.h"
+
+#define MAX_CLIENTS 100
+#define SMTP_SERVICE (MAX_CLIENTS-1)
+#define POP3_SERVICE (MAX_CLIENTS-2)
+#define LOCK_OUT() WaitForSingleObject(glOutputMutex, INFINITE)
+#define UNLOCK_OUT() ReleaseMutex(glOutputMutex)
+#define LOCK_TH() WaitForSingleObject(glThreadMutex, INFINITE)
+#define UNLOCK_TH() ReleaseMutex(glThreadMutex)
+#define LOCK_FL() WaitForSingleObject(glFileMutex, INFINITE)
+#define UNLOCK_FL() ReleaseMutex(glFileMutex)
+#define LOCK_GUI() WaitForSingleObject(glGUIMutex, INFINITE)
+#define UNLOCK_GUI() ReleaseMutex(glGUIMutex)
+
+#define REPORT_FORMAT "%s%s\033[0m: TH#%d: "
+#define REPORT_FORMAT_USER "%s%s\033[0m: TH#%d(%s): "
+
+#define PLTH_PICKPREFIXCOLOR(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "\033[31m" : "\033[32m")
+#define PLTH_PICKPREFIX(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "SMTP" : "POP3")
+
+#define PLTH_REPORT(lThInfo, format, ...)\
+    do{\
+    LOCK_OUT();\
+        if((lThInfo)->haveUser){\
+            fprintf(stderr, REPORT_FORMAT_USER format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, (lThInfo)->user.name, ##__VA_ARGS__);\
+        }else{\
+            fprintf(stderr, REPORT_FORMAT format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, ##__VA_ARGS__);\
+        }\
+    UNLOCK_OUT();\
+    }while(0)
+
+int maxFunc(int a, int b);
+
 #define POP3_SERVER_PORT 110
 #define SMTP_SERVER_PORT 25
 
@@ -32,6 +65,8 @@
 #define C_CR '\015'
 #define C_LF '\013'
 #define S_CRLF "\015\012"
+
+
 
 typedef struct SMTPData{
     char *FROM;
@@ -132,5 +167,17 @@ char *Base64BuildDecodeTable();
 char *Base64Decode(const char *data,
                              int input_length,
                              int *output_length);
+
+extern HANDLE glOutputMutex;
+extern HANDLE glThreadMutex;
+extern HANDLE glFileMutex;
+extern HANDLE glGUIMutex;
+extern ServerThread glPool[MAX_CLIENTS];
+
+// GUI
+extern Ihandle *glGUIThreadList;
+extern Ihandle *glGUIMainBox;
+extern Ihandle *glGUIMainDlg;
+extern Ihandle *glGUIUpdateListButton;
 
 #endif

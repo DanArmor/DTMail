@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+int maxFunc(int a, int b){
+    return a > b ? a : b;
+}
+
 void GetCommand(char *str, int *size) {
     char buffer[BUFF_SIZE];
     fgets(buffer, BUFF_SIZE, stdin);

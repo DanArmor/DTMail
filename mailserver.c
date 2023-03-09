@@ -24,42 +24,19 @@ char errorBuffer[512];
         exit(status);\
     }while(0)
 
-#define MAX_CLIENTS 100
-#define SMTP_SERVICE (MAX_CLIENTS-1)
-#define POP3_SERVICE (MAX_CLIENTS-2)
-#define LOCK_OUT() WaitForSingleObject(glOutputMutex, INFINITE)
-#define UNLOCK_OUT() ReleaseMutex(glOutputMutex)
-#define LOCK_TH() WaitForSingleObject(glThreadMutex, INFINITE)
-#define UNLOCK_TH() ReleaseMutex(glThreadMutex)
-#define LOCK_FL() WaitForSingleObject(glFileMutex, INFINITE)
-#define UNLOCK_FL() ReleaseMutex(glFileMutex)
-
-#define REPORT_FORMAT "%s%s\033[0m: TH#%d: "
-#define REPORT_FORMAT_USER "%s%s\033[0m: TH#%d(%s): "
-
-#define PLTH_PICKPREFIXCOLOR(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "\033[31m" : "\033[32m")
-#define PLTH_PICKPREFIX(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "SMTP" : "POP3")
-
-#define PLTH_REPORT(lThInfo, format, ...)\
-    do{\
-    LOCK_OUT();\
-        if((lThInfo)->haveUser){\
-            fprintf(stderr, REPORT_FORMAT_USER format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, (lThInfo)->user.name, ##__VA_ARGS__);\
-        }else{\
-            fprintf(stderr, REPORT_FORMAT format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, ##__VA_ARGS__);\
-        }\
-    UNLOCK_OUT();\
-    }while(0)
-
-int maxFunc(int a, int b){
-    return a > b ? a : b;
-}
-
 volatile int keepRunning = 1;
+volatile int isGuiRunning = 1;
 HANDLE glOutputMutex;
 HANDLE glThreadMutex;
 HANDLE glFileMutex;
+HANDLE glGUIMutex;
 ServerThread glPool[MAX_CLIENTS];
+
+// GUI
+Ihandle *glGUIThreadList;
+Ihandle *glGUIMainBox;
+Ihandle *glGUIMainDlg;
+Ihandle *glGUIUpdateListButton;
 
 void intHandler(int notUsed){
     LOCK_OUT();
@@ -71,6 +48,26 @@ void intHandler(int notUsed){
     closesocket(glPool[SMTP_SERVICE].client);
     closesocket(glPool[POP3_SERVICE].client);
     UNLOCK_TH();
+}
+
+int LoadThreadList(void){
+    LOCK_TH();
+    LOCK_GUI();
+    if(isGuiRunning){
+        IupSetAttribute(glGUIThreadList, "1", NULL);
+        int j = 1;
+        for(int i = 0; i  < MAX_CLIENTS; i++){
+            if(glPool[i].isFree == 0){
+                IupSetStrfId(glGUIThreadList, "", j, "Thread #%d ", glPool[i].id);
+                IupSetIntId(glGUIThreadList, "ID", j, glPool[i].id);
+                j++;
+            }
+        }
+        IupSetAttribute(glGUIThreadList, "VALUE", NULL);
+    }
+    UNLOCK_GUI();
+    UNLOCK_TH();
+    return IUP_DEFAULT;
 }
 
 UserInfo *glUserList;
@@ -125,6 +122,7 @@ void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int pro
         lThInfo->smtpData = calloc(1, sizeof(SMTPData));
         InitSMTPData(lThInfo->smtpData);
     }
+    LoadThreadList();
 }
 
 void StopProcessingClient(LocalThreadInfo *lThInfo){
@@ -154,6 +152,7 @@ void StopProcessingClient(LocalThreadInfo *lThInfo){
     }
     CloseHandle(lThInfo->threadInfo.handle);
     UNLOCK_TH();
+    LoadThreadList();
 }
 
 DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
@@ -823,6 +822,7 @@ int main(int argc, char **argv){
     glOutputMutex = CreateMutex(NULL, FALSE, NULL);
     glThreadMutex = CreateMutex(NULL, FALSE, NULL);
     glFileMutex = CreateMutex(NULL, FALSE, NULL);
+    glGUIMutex = CreateMutex(NULL, FALSE, NULL);
 
     POP3Up();
     SMTPUp();
@@ -838,6 +838,32 @@ int main(int argc, char **argv){
     const int screenWidth = 800;
     const int screenHeight = 600;
 
+    glGUIThreadList = IupList(NULL);
+    IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
+    IupSetAttribute(glGUIThreadList, "EXPAND", "YES");
+    IupSetAttribute(glGUIThreadList, "SIZE", "300x");
+    IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
+
+    glGUIUpdateListButton = IupButton("Update", NULL);
+    IupSetAttribute(glGUIUpdateListButton, "SIZE", "30");
+    IupSetCallback(glGUIUpdateListButton, "ACTION", (Icallback)LoadThreadList);
+
+    glGUIMainBox = IupVbox(glGUIThreadList, glGUIUpdateListButton, NULL);
+
+    IupSetAttribute(glGUIMainBox, "NMAGRIN", "10x10");
+
+    glGUIMainDlg = IupDialog(glGUIMainBox);
+    IupSetAttribute(glGUIMainDlg, "TITLE", "DTMail");
+    IupSetAttribute(glGUIMainDlg, "GAP", "10");
+
+    IupShowXY(glGUIMainDlg, IUP_CENTER, IUP_CENTER);
+
+    IupMainLoop();
+    LOCK_GUI();
+    LOCK_TH();
+    isGuiRunning = 0;
+    UNLOCK_GUI();
+    UNLOCK_TH();
 
     WaitForSingleObject(POP3_handle, INFINITE);
     WaitForSingleObject(SMTP_handle, INFINITE);
@@ -865,6 +891,7 @@ int main(int argc, char **argv){
     CloseHandle(glFileMutex);
     CloseHandle(glOutputMutex);
     CloseHandle(glThreadMutex);
+    CloseHandle(glGUIMutex);
     WSACleanup();
     IupClose();
     return 0;

@@ -44,6 +44,7 @@ typedef struct ServerThread{
     HANDLE handle;
     BOOL isFree;
     SOCKET client;
+    int id;
 } ServerThread;
 
 // В файл будут сбрасываться только первые 3 поля

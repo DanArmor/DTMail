@@ -1,3 +1,7 @@
+/// @file mailserver.c
+/// @brief Главный файл почтового сервера
+/// @author @DanArmor
+
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
@@ -16,6 +20,27 @@
 #define UNLOCK_TH() ReleaseMutex(glThreadMutex)
 #define LOCK_FL() WaitForSingleObject(glFileMutex, INFINITE)
 #define UNLOCK_FL() ReleaseMutex(glFileMutex)
+
+#define REPORT_FORMAT_USER "%s: TH#%d(%s): "
+#define REPORT_FORMAT "%s: TH#%d: "
+
+#define LTH_REPORT(lThInfo, format, ...)\
+    LOCK_OUT();\
+        if(lThInfo.haveUser){\
+            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, lThInfo.user.name, ##__VA_ARGS__);\
+        }else{\
+            fprintf(stderr, REPORT_FORMAT format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, ##__VA_ARGS__);\
+        }\
+    UNLOCK_OUT()
+
+#define PLTH_REPORT(lThInfo, format, ...)\
+    LOCK_OUT();\
+        if(lThInfo.haveUser){\
+            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo->id, lThInfo->user.name, ##__VA_ARGS__);\
+        }else{\
+            fprintf(stderr, REPORT_FORMAT format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo->threadInfo.id, ##__VA_ARGS__);\
+        }\
+    UNLOCK_OUT()
 
 int maxFunc(int a, int b){
     return a > b ? a : b;
@@ -392,9 +417,7 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3);
 
 
-    LOCK_OUT();
-    printf("Подключился новый клиент POP3\n");
-    UNLOCK_OUT();
+    LTH_REPORT(lThInfo, "Подключился новый клиент POP3\n");
 
     SendOK(lThInfo.threadInfo.client, NULL);
     while(1){
@@ -404,9 +427,8 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
             UNLOCK_OUT();
             break;
         }
-        LOCK_OUT();
-        printf("POP3: Поток #%p got message: %s", lThInfo.threadInfo.handle, lThInfo.buff);
-        UNLOCK_OUT();
+
+        LTH_REPORT(lThInfo, "Новое сообщение: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "USER")){
             if(POP3CommandUSER(&lThInfo) == 0){
@@ -769,6 +791,7 @@ int main(int argc, char **argv){
 
     for(int i = 0; i < MAX_CLIENTS; i++){
         InitServerThread(&glPool[i]);
+        glPool[i].id = i;
     }
     glOutputMutex = CreateMutex(NULL, FALSE, NULL);
     glThreadMutex = CreateMutex(NULL, FALSE, NULL);

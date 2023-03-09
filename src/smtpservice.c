@@ -1,5 +1,7 @@
 #include "smtpservice.h"
 
+#include "base64.h"
+
 void SMTPSendOK(SOCKET sock, char *msg){
     send(sock, "250", 3, 0x0);
     if(msg != NULL){
@@ -289,7 +291,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             UNLOCK_TH();
             // Не нашелся свободный поток в пуле - отклоняем соединение
             if(wasFound == 0){
-                SendERR(client, " Server thread glPool is full - try later");
+                SMTPSendTempError(client, " Server thread glPool is full - try later");
                 closesocket(client);
             }
         }

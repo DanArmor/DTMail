@@ -3,6 +3,12 @@
 
 #include "util.h"
 
+void SendERR(SOCKET sock, char *msg);
+
+void SendOK(SOCKET sock, char *msg);
+
+BOOL CheckStatus(char *buff);
+
 DWORD POP3CommandUSER(LocalThreadInfo *lThInfo);
 
 DWORD POP3CommandPASS(LocalThreadInfo *lThInfo);

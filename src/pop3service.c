@@ -1,5 +1,29 @@
 #include "pop3service.h"
 
+BOOL CheckStatus(char *buff){
+    if(strncmp(buff, "+OK", 3) == 0){
+        return TRUE;
+    } else if(strncmp(buff, "-ERR", 4) == 0){
+        return FALSE;
+    }
+}
+
+void SendERR(SOCKET sock, char *msg){
+    send(sock, "-ERR", 4, 0x0);
+    if(msg != NULL){
+        send(sock, msg, strlen(msg), 0x0);
+    }
+    send(sock, "\015\012", 2, 0x0);
+}
+
+void SendOK(SOCKET sock, char *msg){
+    send(sock, "+OK", 3, 0x0);
+    if(msg != NULL){
+        send(sock, msg, strlen(msg), 0x0);
+    }
+    send(sock, "\015\012", 2, 0x0);
+}
+
 DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     lThInfo->havePass = 0;
     lThInfo->haveUser = 0;

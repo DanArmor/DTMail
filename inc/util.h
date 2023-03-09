@@ -12,7 +12,6 @@
 
 #include "iup.h"
 
-
 #define MY_GUI_ERROR(msg, status)\
     do{\
         sprintf(errorBuffer, "%s %d", msg, status);\
@@ -75,8 +74,6 @@ int maxFunc(int a, int b);
 #define C_LF '\013'
 #define S_CRLF "\015\012"
 
-
-
 typedef struct SMTPData{
     char *FROM;
     char *TO;
@@ -101,16 +98,6 @@ typedef struct UserInfo{
     int index;
 } UserInfo;
 
-typedef struct FileHeader{
-    int nMessages;
-} FileHeader;
-
-typedef struct MessageData{
-    int len;
-    char TO[256];
-    char *buff;
-} MessageData;
-
 typedef struct LocalThreadInfo{
     // Вид протокола
     int protocol;
@@ -134,19 +121,13 @@ typedef struct LocalThreadInfo{
 
 int LoadThreadList(void);
 
-
 void InitSMTPData(SMTPData *smtpData);
 void InitServerThread(ServerThread *serverThread);
 void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol);
-
 void StopProcessingClient(LocalThreadInfo *lThInfo);
 
 void GetCommandCRLF(char *str, int *size);
 void GetCommand(char *str, int *size);
-void SendERR(SOCKET sock, char *msg);
-void SendOK(SOCKET sock, char *msg);
-BOOL CheckStatus(char *buff);
-int StatusLineEnd(char *buff, int size);
 int ReadUntilCRLF(SOCKET sock, char *buff, int *size);
 int ReadUntilDotCRLF(SOCKET sock, char *buff, int*size);
 
@@ -155,31 +136,6 @@ int ReadUntilDotCRLF(SOCKET sock, char *buff, int*size);
 /// @param command Команда
 /// @return Истина, если команда лежит в буфере - иначе ложь
 BOOL WINAPI IsServerCommand(LocalThreadInfo *lThInfo, char *command);
-
-/// @brief Возвращает данные, закодированные в Base64
-/// @details Немного модифицированная реализация https://stackoverflow.com/a/6782480
-/// @param data Кодируемые данные
-/// @param input_length Длина входных данных
-/// @param output_length Длина выходных данныъ
-/// @return Возвращает указатель на закодированные данные в динамической памяти
-char *Base64Encode(const unsigned char *data,
-                    int input_length,
-                    int *output_length);
-
-/// @brief Возвращает таблицу декодирования в динамической памяти
-/// @details Немного модифицированная реализация https://stackoverflow.com/a/6782480
-/// @return Возвращает таблицу декодирования в динамической памяти
-char *Base64BuildDecodeTable();
-
-/// @brief Возвращает данные, декодированные из Base64
-/// @details Немного модифицированная реализация https://stackoverflow.com/a/6782480
-/// @param data Декодируемые данные
-/// @param input_length Длина входных данных
-/// @param output_length Длина выходных данныъ
-/// @return Возвращает указатель на декодированные данные в динамической памяти
-char *Base64Decode(const char *data,
-                             int input_length,
-                             int *output_length);
 
 extern int keepRunning;
 extern int isGuiRunning;

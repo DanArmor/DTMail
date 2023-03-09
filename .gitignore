@@ -58,3 +58,4 @@ dkms.conf
 build/
 etc/
 Graphics/
+lib/

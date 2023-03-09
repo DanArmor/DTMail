@@ -10,7 +10,16 @@
 #include <Windows.h>
 #include <iphlpapi.h>
 
-#include "Graphics/iup.h"
+#include "iup.h"
+
+
+#define MY_GUI_ERROR(msg, status)\
+    do{\
+        sprintf(errorBuffer, "%s %d", msg, status);\
+        IupMessage("Error!", errorBuffer);\
+        IupClose();\
+        exit(status);\
+    }while(0)
 
 #define MAX_CLIENTS 100
 #define SMTP_SERVICE (MAX_CLIENTS-1)
@@ -123,6 +132,15 @@ typedef struct LocalThreadInfo{
 
 } LocalThreadInfo;
 
+int LoadThreadList(void);
+
+
+void InitSMTPData(SMTPData *smtpData);
+void InitServerThread(ServerThread *serverThread);
+void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol);
+
+void StopProcessingClient(LocalThreadInfo *lThInfo);
+
 void GetCommandCRLF(char *str, int *size);
 void GetCommand(char *str, int *size);
 void SendERR(SOCKET sock, char *msg);
@@ -131,11 +149,6 @@ BOOL CheckStatus(char *buff);
 int StatusLineEnd(char *buff, int size);
 int ReadUntilCRLF(SOCKET sock, char *buff, int *size);
 int ReadUntilDotCRLF(SOCKET sock, char *buff, int*size);
-
-void SMTPSendOK(SOCKET sock, char *msg);
-void SMTPSendNeedMoreData(SOCKET sock, char *msg);
-void SMTPSendTempError(SOCKET sock, char *msg);
-void SMTPSendServerError(SOCKET sock, char *msg);
 
 /// @brief Анализирует, лежит ли в буфере потока lThInfo команда command
 /// @param lThInfo Указатель на данные потока
@@ -168,6 +181,9 @@ char *Base64Decode(const char *data,
                              int input_length,
                              int *output_length);
 
+extern int keepRunning;
+extern int isGuiRunning;
+
 extern HANDLE glOutputMutex;
 extern HANDLE glThreadMutex;
 extern HANDLE glFileMutex;
@@ -179,5 +195,10 @@ extern Ihandle *glGUIThreadList;
 extern Ihandle *glGUIMainBox;
 extern Ihandle *glGUIMainDlg;
 extern Ihandle *glGUIUpdateListButton;
+
+extern UserInfo *glUserList;
+extern int usersInList;
+
+extern char errorBuffer[512];
 
 #endif

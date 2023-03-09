@@ -43,37 +43,90 @@ void SendOK(SOCKET sock, char *msg){
     send(sock, "\015\012", 2, 0x0);
 }
 
-void SMTPSendOK(SOCKET sock, char *msg){
-    send(sock, "250", 3, 0x0);
-    if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
-    }
-    send(sock, "\015\012", 2, 0x0);
+void InitSMTPData(SMTPData *smtpData){
+    smtpData->FROM = NULL;
+    smtpData->TO = NULL;
+    smtpData->DATA = NULL;
+    smtpData->dataSize = 0;
+    smtpData->buffSize = 0;
 }
 
-void SMTPSendNeedMoreData(SOCKET sock, char *msg){
-    send(sock, "350", 3, 0x0);
-    if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
-    }
-    send(sock, "\015\012", 2, 0x0);
+void InitServerThread(ServerThread *serverThread){
+    serverThread->handle = 0;
+    serverThread->client = 0;
+    serverThread->isFree = 1;
 }
 
-void SMTPSendTempError(SOCKET sock, char *msg){
-    send(sock, "450", 3, 0x0);
-    if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
+void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol){
+    LOCK_TH();
+    lThInfo->pthreadInfo = thInfo;
+    lThInfo->threadInfo = *thInfo;
+    UNLOCK_TH();
+    lThInfo->havePass = 0;
+    lThInfo->haveUser = 0;
+    memset(&lThInfo->user, 0x0, sizeof(UserInfo));
+    lThInfo->buff = (char*)malloc(BUFF_SIZE);
+    memset(lThInfo->buff, 0x0, BUFF_SIZE);
+    lThInfo->size = 0;
+    lThInfo->protocol = protocol;
+    if(protocol == PROTOCOL_SMTP){
+        lThInfo->domainName = calloc(256, sizeof(char));
+        lThInfo->smtpData = calloc(1, sizeof(SMTPData));
+        InitSMTPData(lThInfo->smtpData);
     }
-    send(sock, "\015\012", 2, 0x0);
+    LoadThreadList();
 }
 
-void SMTPSendServerError(SOCKET sock, char *msg){
-    send(sock, "550", 3, 0x0);
-    if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
+void StopProcessingClient(LocalThreadInfo *lThInfo){
+    // Лучше обращаться по указателю к глобальному пулу потоков
+    // Т.к. мы все равно блочим мьютекс для обновления данных по доступности потока
+    PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
+
+    LOCK_TH();
+    closesocket(lThInfo->pthreadInfo->client);
+    free(lThInfo->buff);
+    glUserList[lThInfo->user.index].isLogged = 0;
+    lThInfo->pthreadInfo->isFree = 1;
+    if(lThInfo->protocol == PROTOCOL_SMTP){
+        if(lThInfo->smtpData->DATA != NULL){
+            free(lThInfo->smtpData->DATA);
+        }
+        if(lThInfo->smtpData->TO != NULL){
+            free(lThInfo->smtpData->TO);
+        }
+        if(lThInfo->smtpData->FROM != NULL){
+            free(lThInfo->smtpData->FROM);
+        }
+        if(lThInfo->domainName != NULL){
+            free(lThInfo->domainName);
+        }
+        free(lThInfo->smtpData);
     }
-    send(sock, "\015\012", 2, 0x0);
+    CloseHandle(lThInfo->threadInfo.handle);
+    UNLOCK_TH();
+    LoadThreadList();
 }
+
+int LoadThreadList(void){
+    LOCK_TH();
+    LOCK_GUI();
+    if(isGuiRunning){
+        IupSetAttribute(glGUIThreadList, "1", NULL);
+        int j = 1;
+        for(int i = 0; i  < MAX_CLIENTS; i++){
+            if(glPool[i].isFree == 0){
+                IupSetStrfId(glGUIThreadList, "", j, "Thread #%d ", glPool[i].id);
+                IupSetIntId(glGUIThreadList, "ID", j, glPool[i].id);
+                j++;
+            }
+        }
+        IupSetAttribute(glGUIThreadList, "VALUE", NULL);
+    }
+    UNLOCK_GUI();
+    UNLOCK_TH();
+    return IUP_DEFAULT;
+}
+
 
 BOOL CheckStatus(char *buff){
     if(strncmp(buff, "+OK", 3) == 0){

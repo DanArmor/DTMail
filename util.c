@@ -127,6 +127,16 @@ int ReadUntilDotCRLF(SOCKET sock, char *buff, int *size){
     }
 }
 
+BOOL WINAPI IsServerCommand(LocalThreadInfo *lThInfo, char *command){
+    int commandSize = strlen(command);
+    if(lThInfo->size-2 >= commandSize &&
+      (lThInfo->buff[commandSize] == ' ' || strncmp(lThInfo->buff+commandSize, S_CRLF, 2) == 0)){
+        return strncmp(lThInfo->buff, command, commandSize) == 0;
+    } else{
+        return FALSE;
+    }
+}
+
 char *Base64Encode(const unsigned char *data,
                     int input_length,
                     int *output_length) {

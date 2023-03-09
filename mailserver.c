@@ -21,12 +21,6 @@ int maxFunc(int a, int b){
     return a > b ? a : b;
 }
 
-typedef struct ServerThread{
-    HANDLE handle;
-    BOOL isFree;
-    SOCKET client;
-} ServerThread;
-
 volatile int keepRunning = 1;
 HANDLE glOutputMutex;
 HANDLE glThreadMutex;
@@ -66,17 +60,6 @@ UserInfo *ReadUsersFromFile(char *filename, int *nUsers){
     return users;
 }
 
-#define PROTOCOL_SMTP 1
-#define PROTOCOL_POP3 2
-
-typedef struct SMTPData{
-    char *FROM;
-    char *TO;
-    char *DATA;
-    int dataSize;
-    int buffSize;
-} SMTPData;
-
 void InitSMTPData(SMTPData *smtpData){
     smtpData->FROM = NULL;
     smtpData->TO = NULL;
@@ -84,27 +67,6 @@ void InitSMTPData(SMTPData *smtpData){
     smtpData->dataSize = 0;
     smtpData->buffSize = 0;
 }
-
-typedef struct LocalThreadInfo{
-    // Вид протокола
-    int protocol;
-    // Мы локально храним данные потока, чтобы не блокировать мьютекс
-    // для доступа к ним внутри потоков
-    ServerThread threadInfo;
-    // Указатель на запись о потоке в пуле. Необходима для окончания работы
-    // потока, чтобы обозначить, что он свободен
-    ServerThread *pthreadInfo;
-    UserInfo user;
-    int haveUser;
-    int havePass;
-    char *buff;
-    // Количество полезных данных в буфере
-    int size;
-    // для SMTP
-    char *domainName; // Доменное имя отправителя
-    SMTPData *smtpData;
-
-} LocalThreadInfo;
 
 void InitServerThread(ServerThread *serverThread){
     serverThread->handle = 0;
@@ -446,11 +408,11 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
         printf("POP3: Поток #%p got message: %s", lThInfo.threadInfo.handle, lThInfo.buff);
         UNLOCK_OUT();
 
-        if(strncmp(lThInfo.buff, "USER", 4) == 0){
+        if(IsServerCommand(&lThInfo, "USER")){
             if(POP3CommandUSER(&lThInfo) == 0){
                 lThInfo.haveUser = 1;
             }
-        } else if(strncmp(lThInfo.buff, "PASS", 4) == 0){
+        } else if(IsServerCommand(&lThInfo, "PASS")){
             if(lThInfo.haveUser == 0){
                 SendERR(lThInfo.threadInfo.client, " Provide USER first");
                 continue;
@@ -459,18 +421,18 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
                 lThInfo.havePass = 1;
             }
         } else if(lThInfo.havePass){
-            if(strncmp(lThInfo.buff, "STAT", 4) == 0){
+            if(IsServerCommand(&lThInfo, "STAT")){
                 POP3CommandSTAT(&lThInfo);
-            } else if(strncmp(lThInfo.buff, "LIST", 4) == 0){
+            } else if(IsServerCommand(&lThInfo, "LIST")){
                 POP3CommandLIST(&lThInfo);
-            } else if(strncmp(lThInfo.buff, "QUIT", 4) == 0){
+            } else if(IsServerCommand(&lThInfo, "QUIT")){
                 SendOK(lThInfo.threadInfo.client, NULL);
                 break;
-            } else if(strncmp(lThInfo.buff, "RETR", 4) == 0){
+            } else if(IsServerCommand(&lThInfo, "RETR")){
                 POP3CommandRETR(&lThInfo);
-            } else if(strncmp(lThInfo.buff, "DELE", 4) == 0){
+            } else if(IsServerCommand(&lThInfo, "DELE")){
                 POP3CommandDELE(&lThInfo);
-            } else if(strncmp(lThInfo.buff, "TOP", 3) == 0){
+            } else if(IsServerCommand(&lThInfo, "TOP")){
                 SendERR(lThInfo.threadInfo.client, " not supported");
             } else{
                 SendERR(lThInfo.threadInfo.client, " Unknown command");
@@ -691,7 +653,7 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
         printf("SMTP: Поток #%p получено сообщение: %s", lThInfo.threadInfo.handle, lThInfo.buff);
         UNLOCK_OUT();
 
-        if(strncmp(lThInfo.buff, "EHLO", 4) == 0){
+        if(IsServerCommand(&lThInfo, "EHLO")){
             if(SMTPCommandEHLO(&lThInfo) == 0){
                 LOCK_OUT();
                 printf("SMTP: Поток #%p. Доменное имя клиента получено:\n  %s\n", lThInfo.threadInfo.handle, lThInfo.domainName);
@@ -701,31 +663,23 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH=LOGIN");
                 SMTPSendOK(lThInfo.threadInfo.client, " HELP");
             }
-        } else if(strncmp(lThInfo.buff, "AUTH LOGIN", 10) == 0){
+        } else if(IsServerCommand(&lThInfo, "AUTH LOGIN")){
             if(SMTPCommandAUTHLOGIN(&lThInfo) == 0){
                 send(lThInfo.threadInfo.client, "235\015\012", 5, 0x0);
             }
-        } else if(strncmp(lThInfo.buff, "QUIT", 4) == 0){
+        } else if(IsServerCommand(&lThInfo, "QUIT")){
             SMTPSendOK(lThInfo.threadInfo.client, NULL);
             break;
         } else if(lThInfo.havePass){
-            if(strncmp(lThInfo.buff, "MAIL", 4) == 0){
-                if(strncmp(lThInfo.buff+5, "FROM", 4) == 0){
-                    if(SMTPCommandMAILFROM(&lThInfo) == 0){
-                        SMTPSendOK(lThInfo.threadInfo.client, NULL);
-                    }
-                } else{
-                    SMTPSendServerError(lThInfo.threadInfo.client, " Unknown option after MAIL");
+            if(IsServerCommand(&lThInfo, "MAIL FROM:")){
+                if(SMTPCommandMAILFROM(&lThInfo) == 0){
+                    SMTPSendOK(lThInfo.threadInfo.client, NULL);
                 }
-            } else if(strncmp(lThInfo.buff, "RCPT", 4) == 0){
-                if(strncmp(lThInfo.buff+5, "TO", 2) == 0){
-                    if(SMTPCommandRCPTTO(&lThInfo) == 0){
-                        SMTPSendOK(lThInfo.threadInfo.client, NULL);
-                    }
-                } else{
-                    SMTPSendServerError(lThInfo.threadInfo.client, " Unknown option after RCTP");
+            } else if(IsServerCommand(&lThInfo, "RCPT TO:")){
+                if(SMTPCommandRCPTTO(&lThInfo) == 0){
+                    SMTPSendOK(lThInfo.threadInfo.client, NULL);
                 }
-            } else if(strncmp(lThInfo.buff, "DATA", 4) == 0){
+            } else if(IsServerCommand(&lThInfo, "DATA")){
                 if(SMTPCommandDATA(&lThInfo) == 0){
                     SMTPSendOK(lThInfo.threadInfo.client, NULL);
                 }

@@ -21,27 +21,19 @@
 #define LOCK_FL() WaitForSingleObject(glFileMutex, INFINITE)
 #define UNLOCK_FL() ReleaseMutex(glFileMutex)
 
-#define REPORT_FORMAT_USER "%s: TH#%d(%s): "
-#define REPORT_FORMAT "%s: TH#%d: "
+#define REPORT_FORMAT "%s%s\033[0m: TH#%d: "
+#define REPORT_FORMAT_USER "%s%s\033[0m: TH#%d(%s): "
 
-#define LTH_REPORT(lThInfo, format, ...)\
-    do{\
-    LOCK_OUT();\
-        if(lThInfo.haveUser){\
-            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, lThInfo.user.name, ##__VA_ARGS__);\
-        }else{\
-            fprintf(stderr, REPORT_FORMAT format, lThInfo.protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo.threadInfo.id, ##__VA_ARGS__);\
-        }\
-    UNLOCK_OUT();\
-    }while(0)
+#define PLTH_PICKPREFIXCOLOR(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "\033[31m" : "\033[32m")
+#define PLTH_PICKPREFIX(lThInfo) ((lThInfo)->protocol == PROTOCOL_SMTP? "SMTP" : "POP3")
 
 #define PLTH_REPORT(lThInfo, format, ...)\
     do{\
     LOCK_OUT();\
-        if(lThInfo->haveUser){\
-            fprintf(stderr, REPORT_FORMAT_USER format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo->threadInfo.id, lThInfo->user.name, ##__VA_ARGS__);\
+        if((lThInfo)->haveUser){\
+            fprintf(stderr, REPORT_FORMAT_USER format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, (lThInfo)->user.name, ##__VA_ARGS__);\
         }else{\
-            fprintf(stderr, REPORT_FORMAT format, lThInfo->protocol == PROTOCOL_SMTP? "SMTP" : "POP3", lThInfo->threadInfo.id, ##__VA_ARGS__);\
+            fprintf(stderr, REPORT_FORMAT format, PLTH_PICKPREFIXCOLOR(lThInfo), PLTH_PICKPREFIX(lThInfo), (lThInfo)->threadInfo.id, ##__VA_ARGS__);\
         }\
     UNLOCK_OUT();\
     }while(0)
@@ -160,7 +152,8 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        SendERR(lThInfo->threadInfo.client, "should provide user name");
+        PLTH_REPORT(lThInfo, "Отсутствует имя пользователя в сообщении\n");
+        SendERR(lThInfo->threadInfo.client, " should provide user name");
         return 1;
     }
     int startOfName = index;
@@ -399,16 +392,16 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3);
 
 
-    LTH_REPORT(lThInfo, "Подключился новый клиент POP3\n");
+    PLTH_REPORT(&lThInfo, "Подключился новый клиент POP3\n");
 
     SendOK(lThInfo.threadInfo.client, NULL);
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            LTH_REPORT(lThInfo, "Сокет закрыт\n");
+            PLTH_REPORT(&lThInfo, "Сокет закрыт\n");
             break;
         }
 
-        LTH_REPORT(lThInfo, "Новое сообщение: %s", lThInfo.buff);
+        PLTH_REPORT(&lThInfo, "Новое сообщение: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "USER")){
             POP3CommandUSER(&lThInfo);
@@ -629,20 +622,20 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
 
-    LTH_REPORT(lThInfo, "Подключился новый клиент SMTP\n");
+    PLTH_REPORT(&lThInfo, "Подключился новый клиент SMTP\n");
 
     send(lThInfo.threadInfo.client, "220\015\012", 5, 0x0);
 
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
-            LTH_REPORT(lThInfo, "Сокет закрыт\n");
+            PLTH_REPORT(&lThInfo, "Сокет закрыт\n");
             break;
         }
-        LTH_REPORT(lThInfo, "Новое сообщение: %s", lThInfo.buff);
+        PLTH_REPORT(&lThInfo, "Новое сообщение: %s", lThInfo.buff);
 
         if(IsServerCommand(&lThInfo, "EHLO")){
             if(SMTPCommandEHLO(&lThInfo) == 0){
-                LTH_REPORT(lThInfo, "Доменное имя клиента: %s\n", lThInfo.domainName);
+                PLTH_REPORT(&lThInfo, "Доменное имя клиента: %s\n", lThInfo.domainName);
                 SMTPSendOK(lThInfo.threadInfo.client, "-Mailserver");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH LOGIN");
                 SMTPSendOK(lThInfo.threadInfo.client, "-AUTH=LOGIN");
@@ -685,7 +678,7 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
 DWORD WINAPI SMTPService(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
     InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
-    LTH_REPORT(lThInfo, "SMTP служба работает\n");
+    PLTH_REPORT(&lThInfo, "SMTP служба работает\n");
     while(keepRunning){
         SOCKET client = accept(lThInfo.threadInfo.client, NULL, NULL);
         int wasFound = 0;
@@ -708,7 +701,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             }
         }
     }
-    LTH_REPORT(lThInfo, "SMTP остановила прием новых сообщений\n");
+    PLTH_REPORT(&lThInfo, "SMTP остановила прием новых сообщений\n");
     StopProcessingClient(&lThInfo);
 
     return 0;

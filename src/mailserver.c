@@ -157,13 +157,20 @@ int main(int argc, char **argv){
     LOCK_OUT();
     printf("Waiting for all threads to terminate. . .\n");
     UNLOCK_OUT();
-    for(int i = 0; i < MAX_CLIENTS; i++){
-        LOCK_TH();
-        if(glPool[i].isFree == 0){
+    int foundRunning = 0;
+    while(1){
+        for(int i = 0; i < MAX_CLIENTS; i++){
+            LOCK_TH();
+            if(glPool[i].isFree == 0){
+                UNLOCK_TH();
+                foundRunning = 1;
+                WaitForSingleObject(glPool[i].handle, INFINITE);
+            }
             UNLOCK_TH();
-            WaitForSingleObject(glPool[i].handle, INFINITE);
         }
-        UNLOCK_TH();
+        if(foundRunning == 0){
+            break;
+        }
     }
     LOCK_OUT();
     printf("Server was stopped successfully\n");

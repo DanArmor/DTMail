@@ -14,7 +14,7 @@ int LoadThreadList(void){
         int j = 1;
         for(int i = 0; i  < MAX_CLIENTS; i++){
             if(glPool[i].isFree == 0 && glPool[i].pLocal != NULL && glPool[i].pLocal->isService == 0){
-                IupSetStrfId(glGUIThreadList, "", j, "Session #%d ", glPool[i].pLocal->sessionLog.id);
+                IupSetStrfId(glGUIThreadList, "", j, "Session #%d", glPool[i].pLocal->sessionLog.id);
                 IupSetIntId(glGUIThreadList, "ID", j, glPool[i].pLocal->sessionLog.id);
                 if(found != 1 && intValue != -1 && glPool[i].pLocal->sessionLog.id == intValue){
                     found = 1;
@@ -24,7 +24,7 @@ int LoadThreadList(void){
             }
         }
         for(int i = 0; i < glDeadSessionsN; i++){
-            IupSetStrfId(glGUIThreadList, "", j, "Session (DEAD) #%d ", glDeadSessions[i]);
+            IupSetStrfId(glGUIThreadList, "", j, "Session #%d (DEAD)", glDeadSessions[i].id);
             IupSetIntId(glGUIThreadList, "ID", j, glDeadSessions[i].id);
             if(found != 1 && intValue != -1 && glDeadSessions[i].id == intValue){
                 found = 1;

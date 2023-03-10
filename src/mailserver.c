@@ -37,6 +37,10 @@ Ihandle *glGUIUpdateListButton;
 UserInfo *glUserList;
 int usersInList;
 
+SessionLog *glDeadSessions;
+int glDeadSessionsN;
+int glSessionsN = -2; // POP3 and SMTP service are two first local threads 
+
 void intHandler(int notUsed){
     LOCK_OUT();
     fprintf(stderr, "Server is stopping. . .\n");
@@ -181,6 +185,13 @@ int main(int argc, char **argv){
     CloseHandle(glThreadMutex);
     CloseHandle(glGUIMutex);
     WSACleanup();
+
+    for(int i = 0; i < glDeadSessionsN; i++){
+        free(glDeadSessions[i].session);
+    }
+    if(glDeadSessions != NULL){
+        free(glDeadSessions);
+    }
 
     if(flagNOGUI == 0){
         IupClose();

@@ -27,6 +27,16 @@ void GetCommandCRLF(char *str, int *size) {
     *size = index+2;
 }
 
+void WriteToSession(SessionLog *sessionLog, char *msg, int size){
+    if(sessionLog->size + size < sessionLog->buffSize){
+        sessionLog->buffSize = sessionLog->buffSize + size + BUFF_SIZE * 4;
+        sessionLog->session = realloc(sessionLog->session, sessionLog->buffSize);
+    }
+    memcpy(sessionLog->session+sessionLog->size, msg, size);
+    sessionLog->size = sessionLog->size + size;
+    sessionLog->session[sessionLog->size] = '\0';
+}
+
 void InitServerThread(ServerThread *serverThread){
     serverThread->handle = 0;
     serverThread->client = 0;
@@ -41,33 +51,63 @@ void InitSMTPData(SMTPData *smtpData){
     smtpData->buffSize = 0;
 }
 
-void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol){
+void InitSessionLog(LocalThreadInfo *lThInfo){
+    lThInfo->sessionLog.buffSize = BUFF_SIZE * 4;
+    lThInfo->sessionLog.size = 0;
+    lThInfo->sessionLog.session = malloc(lThInfo->sessionLog.buffSize);
+    
     LOCK_TH();
+    lThInfo->sessionLog.id = glSessionsN;
+    glSessionsN++;
+    UNLOCK_TH();
+
+    lThInfo->sessionLog.isDead = 0;
+    lThInfo->sessionLog.protocol = lThInfo->protocol;
+}
+
+void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol, int isService){
+    LOCK_TH();
+    memset(lThInfo, 0x0, sizeof(LocalThreadInfo));
+
     lThInfo->pthreadInfo = thInfo;
     lThInfo->threadInfo = *thInfo;
+    lThInfo->isService = isService;
     thInfo->pLocal = lThInfo;
-    UNLOCK_TH();
+
     lThInfo->havePass = 0;
     lThInfo->haveUser = 0;
-    memset(&lThInfo->user, 0x0, sizeof(UserInfo));
-    lThInfo->buff = (char*)malloc(BUFF_SIZE);
-    memset(lThInfo->buff, 0x0, BUFF_SIZE);
     lThInfo->size = 0;
+
+    lThInfo->buff = (char*)calloc(BUFF_SIZE, sizeof(char));
+
     lThInfo->protocol = protocol;
     if(protocol == PROTOCOL_SMTP){
-        lThInfo->domainName = calloc(256, sizeof(char));
+        lThInfo->domainName = calloc(NAME_MAX_SIZE, sizeof(char));
         lThInfo->smtpData = calloc(1, sizeof(SMTPData));
         InitSMTPData(lThInfo->smtpData);
     }
+
+    InitSessionLog(lThInfo);
+
+    UNLOCK_TH();
+
     LoadThreadList();
+}
+
+void MigrateDeadSession(SessionLog *sessionLog){
+    glDeadSessionsN++;
+    glDeadSessions = realloc(glDeadSessions, sizeof(SessionLog) * glDeadSessionsN);
+    glDeadSessions[glDeadSessionsN-1] = *sessionLog;
 }
 
 void StopProcessingClient(LocalThreadInfo *lThInfo){
     // Лучше обращаться по указателю к глобальному пулу потоков
     // Т.к. мы все равно блочим мьютекс для обновления данных по доступности потока
+    LOCK_TH();
     PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
 
-    LOCK_TH();
+    lThInfo->sessionLog.isDead = 1;
+    MigrateDeadSession(&lThInfo->sessionLog);
     closesocket(lThInfo->pthreadInfo->client);
     free(lThInfo->buff);
     glUserList[lThInfo->user.index].isLogged = 0;

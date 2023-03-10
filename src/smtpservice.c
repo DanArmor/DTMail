@@ -215,7 +215,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
 
 DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
-    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
+    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP, 0);
 
     PLTH_REPORT(&lThInfo, "Connected new SMTP client\n");
 
@@ -272,7 +272,8 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
 
 DWORD WINAPI SMTPService(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
-    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP);
+    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_SMTP, 1);
+
     PLTH_REPORT(&lThInfo, "SMTP service is ON\n");
     while(keepRunning){
         SOCKET client = accept(lThInfo.threadInfo.client, NULL, NULL);
@@ -281,6 +282,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             LOCK_TH();
             for(int i = 0; i < MAX_CLIENTS; i++){
                 if(glPool[i].isFree){
+                    memset(&glPool[i], 0x0, sizeof(ServerThread));
                     glPool[i].client = client;
                     glPool[i].isFree = 0;
                     glPool[i].handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ProcessSMTP, (LPVOID)&glPool[i], 0, NULL);

@@ -3,9 +3,13 @@
 
 #include "util.h"
 
-void SendERR(SOCKET sock, char *msg);
+void SocketSendERR(SOCKET client, char *msg);
 
-void SendOK(SOCKET sock, char *msg);
+void SocketSendOK(SOCKET client, char *msg);
+
+void SendERR(LocalThreadInfo *lThInfo, char *msg);
+
+void SendOK(LocalThreadInfo *lThInfo, char *msg);
 
 BOOL CheckStatus(char *buff);
 

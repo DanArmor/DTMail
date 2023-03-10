@@ -93,6 +93,17 @@ typedef struct SMTPData{
     int buffSize;
 } SMTPData;
 
+typedef struct SessionLog{
+    int size;
+    int buffSize;
+    char *session;
+    int protocol;
+    int id;
+    int isDead;
+} SessionLog;
+
+void WriteToSession(SessionLog *sessionLog, char *msg, int size);
+
 typedef struct LocalThreadInfo LocalThreadInfo;
 
 typedef struct ServerThread{
@@ -127,17 +138,20 @@ struct LocalThreadInfo{
     char *buff;
     // Количество полезных данных в буфере
     int size;
+    // Сервисный поток. Не нужно выводить лог в GUI
+    int isService;
+    // Запись SMTP/POP3 сессии
+    SessionLog sessionLog;
     // для SMTP
     char *domainName; // Доменное имя отправителя
     SMTPData *smtpData;
 
 };
 
-int LoadThreadList(void);
-
+void MigrateDeadSession(SessionLog *sessionLog);
 void InitSMTPData(SMTPData *smtpData);
 void InitServerThread(ServerThread *serverThread);
-void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol);
+void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int protocol, int isService);
 void StopProcessingClient(LocalThreadInfo *lThInfo);
 
 void GetCommandCRLF(char *str, int *size);
@@ -170,5 +184,13 @@ extern UserInfo *glUserList;
 extern int usersInList;
 
 extern char errorBuffer[512];
+
+extern SessionLog *glDeadSessions;
+extern int glDeadSessionsN;
+extern int glSessionsN;
+
+
+// GUI
+int LoadThreadList(void);
 
 #endif

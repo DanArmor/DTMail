@@ -8,20 +8,48 @@ BOOL CheckStatus(char *buff){
     }
 }
 
-void SendERR(SOCKET sock, char *msg){
-    send(sock, "-ERR", 4, 0x0);
+void SocketSendERR(SOCKET client, char *msg){
+    send(client, "-ERR", 4, 0x0);
     if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
+        send(client, msg, strlen(msg), 0x0);
     }
-    send(sock, "\015\012", 2, 0x0);
+    send(client, "\015\012", 2, 0x0);
 }
 
-void SendOK(SOCKET sock, char *msg){
-    send(sock, "+OK", 3, 0x0);
+void SocketSendOK(SOCKET client, char *msg){
+    send(client, "+OK", 3, 0x0);
     if(msg != NULL){
-        send(sock, msg, strlen(msg), 0x0);
+        send(client, msg, strlen(msg), 0x0);
     }
-    send(sock, "\015\012", 2, 0x0);
+    send(client, "\015\012", 2, 0x0);
+}
+
+void SendERR(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "-ERR", 4, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSession(&lThInfo->sessionLog, "-ERR", 4);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+}
+
+void SendOK(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "+OK", 3, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSession(&lThInfo->sessionLog, "+OK", 3);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
 }
 
 DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
@@ -29,7 +57,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     lThInfo->haveUser = 0;
     if(lThInfo->size < 8){
         PLTH_REPORT(lThInfo, "No username in message\n");
-        SendERR(lThInfo->threadInfo.client, " should provide username");
+        SendERR(lThInfo, " should provide username");
         return 1;
     }
     int index = 0;
@@ -38,7 +66,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
     }
     if(lThInfo->buff[index] == '\015'){
         PLTH_REPORT(lThInfo, "No username in message\n");
-        SendERR(lThInfo->threadInfo.client, " should provide user name");
+        SendERR(lThInfo, " should provide user name");
         return 1;
     }
     int startOfName = index;
@@ -53,10 +81,10 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
         if(nameLen == strlen(glUserList[index].name) && strncmp(glUserList[index].name, &lThInfo->buff[startOfName], nameLen) == 0){
             if(glUserList[index].isLogged){
                 PLTH_REPORT(lThInfo, "User is already logged in(%s)\n", glUserList[index].name);
-                SendERR(lThInfo->threadInfo.client, " User already logged in");
+                SendERR(lThInfo, " User already logged in");
                 return 1;
             }
-            SendOK(lThInfo->threadInfo.client, NULL);
+            SendOK(lThInfo, NULL);
             lThInfo->user = glUserList[index];
             lThInfo->haveUser = TRUE;
             PLTH_REPORT(lThInfo, "User was found\n");
@@ -69,7 +97,7 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
         lThInfo->buff[endOfName] = '\0';
         PLTH_REPORT(lThInfo, "No such user(%s)\n", lThInfo->buff+startOfName);
         lThInfo->buff[endOfName] = back;
-        SendERR(lThInfo->threadInfo.client, " no such user");
+        SendERR(lThInfo, " no such user");
         return 1;
     }
     return 0;
@@ -77,12 +105,12 @@ DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
 
 DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
     if(lThInfo->haveUser == 0){
-        SendERR(lThInfo->threadInfo.client, " Send USER first");
+        SendERR(lThInfo, " Send USER first");
         return 1;
     }
     if(lThInfo->size < 8){
         PLTH_REPORT(lThInfo, "No password in message\n");
-        SendERR(lThInfo->threadInfo.client, " should provide password");
+        SendERR(lThInfo, " should provide password");
         return 1;
     }
     int index = 0;
@@ -91,7 +119,7 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
     }
     if(lThInfo->buff[index] == '\015'){
         PLTH_REPORT(lThInfo, "No password in message\n");
-        SendERR(lThInfo->threadInfo.client, " should provide password");
+        SendERR(lThInfo, " should provide password");
         return 1;
     }
     int startOfPass = index;
@@ -102,11 +130,11 @@ DWORD POP3CommandPASS(LocalThreadInfo *lThInfo){
     int passLen = endOfPass - startOfPass;
     if(strncmp(&lThInfo->buff[startOfPass], lThInfo->user.pass, maxFunc(strlen(lThInfo->user.pass), passLen)) == 0){
         PLTH_REPORT(lThInfo, "AUTH OK\n");
-        SendOK(lThInfo->threadInfo.client, " Logged in");
+        SendOK(lThInfo, " Logged in");
         return 0;
     }
     PLTH_REPORT(lThInfo, "Wrong password\n");
-    SendERR(lThInfo->threadInfo.client, " Wrong password");
+    SendERR(lThInfo, " Wrong password");
     return 1;
 }
 
@@ -130,7 +158,7 @@ DWORD WINAPI POP3CommandLIST(LocalThreadInfo *lThInfo){
     }
     fseek(f, sizeof(int), SEEK_SET);
     sprintf(buff, " %d:", userMessages);
-    SendOK(lThInfo->threadInfo.client, buff);
+    SendOK(lThInfo, buff);
     int index = 1;
     for(int i = 0; i < nMessages; i++){
         fread(&dataSize, sizeof(int), 1, f);
@@ -139,6 +167,7 @@ DWORD WINAPI POP3CommandLIST(LocalThreadInfo *lThInfo){
             sprintf(buff, "%d %d\015\012", index, dataSize);
             index++;
             send(lThInfo->threadInfo.client, buff, strlen(buff), 0x0);
+            WriteToSession(&lThInfo->sessionLog, buff, strlen(buff));
         }
         fseek(f, dataSize, SEEK_CUR);
     }
@@ -147,6 +176,7 @@ DWORD WINAPI POP3CommandLIST(LocalThreadInfo *lThInfo){
     UNLOCK_FL();
 
     send(lThInfo->threadInfo.client, ".\015\012", 3, 0x0);
+    WriteToSession(&lThInfo->sessionLog, ".\015\012", 3);
 
     return 0;
 }
@@ -171,10 +201,11 @@ DWORD WINAPI POP3CommandRETR(LocalThreadInfo *lThInfo){
             userMessages++;
             if(userMessages == index){
                 sprintf(buff, " %d octets", dataSize);
-                SendOK(lThInfo->threadInfo.client, buff);
+                SendOK(lThInfo, buff);
                 char *dataP = malloc(dataSize);
                 fread(dataP, dataSize, 1, f);
                 send(lThInfo->threadInfo.client, dataP, dataSize, 0x0);
+                WriteToSession(&lThInfo->sessionLog, dataP, dataSize);
                 free(dataP);
                 wasFound = 1;
                 break;
@@ -186,7 +217,7 @@ DWORD WINAPI POP3CommandRETR(LocalThreadInfo *lThInfo){
     fclose(f);
     UNLOCK_FL();
     if(wasFound == 0){
-        SendERR(lThInfo->threadInfo.client, " No msg with such index");
+        SendERR(lThInfo, " No msg with such index");
     }
 
     return 0;
@@ -236,10 +267,10 @@ DWORD WINAPI POP3CommandDELE(LocalThreadInfo *lThInfo){
     if(wasCorrect){
         remove(MAIL_DATA_FILE);
         rename(MAIL_SUPPORT_FILE, MAIL_DATA_FILE);
-        SendOK(lThInfo->threadInfo.client, NULL);
+        SendOK(lThInfo, NULL);
     } else{
         remove(MAIL_SUPPORT_FILE);
-        SendERR(lThInfo->threadInfo.client, " No msg with such index");
+        SendERR(lThInfo, " No msg with such index");
     }
     UNLOCK_FL();
 
@@ -271,7 +302,7 @@ DWORD WINAPI POP3CommandSTAT(LocalThreadInfo *lThInfo){
     UNLOCK_FL();
 
     sprintf(buff, " %d %d", userMessages, totalSize);
-    SendOK(lThInfo->threadInfo.client, buff);
+    SendOK(lThInfo, buff);
     PLTH_REPORT(lThInfo, "STAT OK -%s\n", buff);
 
     return 0;
@@ -279,11 +310,11 @@ DWORD WINAPI POP3CommandSTAT(LocalThreadInfo *lThInfo){
 
 DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
-    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3);
+    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3, 0);
 
     PLTH_REPORT(&lThInfo, "Connected new POP3 client\n");
 
-    SendOK(lThInfo.threadInfo.client, NULL);
+    SendOK(&lThInfo, NULL);
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
             PLTH_REPORT(&lThInfo, "Socket was closed\n");
@@ -291,12 +322,13 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
         }
 
         PLTH_REPORT(&lThInfo, "New message: %s", lThInfo.buff);
+        WriteToSession(&lThInfo.sessionLog, lThInfo.buff, lThInfo.size);
 
         if(IsServerCommand(&lThInfo, "USER")){
             POP3CommandUSER(&lThInfo);
         } else if(IsServerCommand(&lThInfo, "PASS")){
             if(lThInfo.haveUser == 0){
-                SendERR(lThInfo.threadInfo.client, " Provide USER first");
+                SendERR(&lThInfo, " Provide USER first");
                 continue;
             }
             if(POP3CommandPASS(&lThInfo) == 0){
@@ -308,19 +340,19 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
             } else if(IsServerCommand(&lThInfo, "LIST")){
                 POP3CommandLIST(&lThInfo);
             } else if(IsServerCommand(&lThInfo, "QUIT")){
-                SendOK(lThInfo.threadInfo.client, NULL);
+                SendOK(&lThInfo, NULL);
                 break;
             } else if(IsServerCommand(&lThInfo, "RETR")){
                 POP3CommandRETR(&lThInfo);
             } else if(IsServerCommand(&lThInfo, "DELE")){
                 POP3CommandDELE(&lThInfo);
             } else if(IsServerCommand(&lThInfo, "TOP")){
-                SendERR(lThInfo.threadInfo.client, " not supported");
+                SendERR(&lThInfo, " not supported");
             } else{
-                SendERR(lThInfo.threadInfo.client, " Unknown command");
+                SendERR(&lThInfo, " Unknown command");
             } 
         } else{
-            SendERR(lThInfo.threadInfo.client, " AUTH first");
+            SendERR(&lThInfo, " AUTH first");
         }
     }
 
@@ -331,7 +363,8 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
 
 DWORD WINAPI POP3Service(LPVOID lpParameter){
     LocalThreadInfo lThInfo;
-    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3);
+    InitLocalThreadInfo(&lThInfo, (ServerThread*)lpParameter, PROTOCOL_POP3, 1);
+
     PLTH_REPORT(&lThInfo, "POP3 service is ON\n");
     while(keepRunning){
         SOCKET client = accept(lThInfo.threadInfo.client, NULL, NULL);
@@ -340,6 +373,7 @@ DWORD WINAPI POP3Service(LPVOID lpParameter){
             LOCK_TH();
             for(int i = 0; i < MAX_CLIENTS; i++){
                 if(glPool[i].isFree){
+                    memset(&glPool[i], 0x0, sizeof(ServerThread));
                     glPool[i].client = client;
                     glPool[i].isFree = 0;
                     glPool[i].handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ProcessPOP3, (LPVOID)&glPool[i], 0, NULL);
@@ -350,7 +384,7 @@ DWORD WINAPI POP3Service(LPVOID lpParameter){
             UNLOCK_TH();
             // Не нашелся свободный поток в пуле - отклоняем соединение
             if(wasFound == 0){
-                SendERR(client, " Server thread glPool is full - try later");
+                SocketSendERR(client, " Server thread glPool is full - try later");
                 closesocket(client);
             }
         }

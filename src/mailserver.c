@@ -127,7 +127,7 @@ int main(int argc, char **argv){
         glGUIThreadList = IupList(NULL);
         IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
         IupSetAttribute(glGUIThreadList, "EXPAND", "NO");
-        IupSetAttribute(glGUIThreadList, "SIZE", "50x");
+        IupSetAttribute(glGUIThreadList, "SIZE", "100x");
         IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
 
         glGUISessionText = IupText(NULL);

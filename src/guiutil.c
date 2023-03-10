@@ -23,6 +23,15 @@ int LoadThreadList(void){
                 j++;
             }
         }
+        for(int i = 0; i < glDeadSessionsN; i++){
+            IupSetStrfId(glGUIThreadList, "", j, "Session (DEAD) #%d ", glDeadSessions[i]);
+            IupSetIntId(glGUIThreadList, "ID", j, glDeadSessions[i].id);
+            if(found != 1 && intValue != -1 && glDeadSessions[i].id == intValue){
+                found = 1;
+                intValue = j;
+            }
+            j++;
+        }
         if(found == 0){
             IupSetAttribute(glGUIThreadList, "VALUE", NULL);
         } else {

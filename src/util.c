@@ -38,10 +38,12 @@ void WriteToSession(SessionLog *sessionLog, char *msg, int size){
 }
 
 void WriteToSessionPrefix(SessionLog *sessionLog, int isServer){
-    if(isServer){
-        WriteToSession(sessionLog, "SERVER: ", 8);
-    } else{
-        WriteToSession(sessionLog, "CLIENT: ", 8);
+    if(flagIsPrefix){
+        if(isServer){
+            WriteToSession(sessionLog, "=== SERVER ===\015\012", 16);
+        } else{
+            WriteToSession(sessionLog, "=== CLIENT ===\015\012", 16);
+        }
     }
 }
 
@@ -118,7 +120,7 @@ void StopProcessingClient(LocalThreadInfo *lThInfo){
     PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
 
     lThInfo->sessionLog.isDead = 1;
-    WriteToSession(&lThInfo->sessionLog, "======END OF SESSION======\015\012", 28);
+    WriteToSession(&lThInfo->sessionLog, "======END OF SESSION======\015\012", 30);
     MigrateDeadSession(&lThInfo->sessionLog);
     closesocket(lThInfo->pthreadInfo->client);
     free(lThInfo->buff);

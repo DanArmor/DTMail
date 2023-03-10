@@ -168,6 +168,7 @@ BOOL WINAPI IsServerCommand(LocalThreadInfo *lThInfo, char *command);
 
 extern int keepRunning;
 extern int isGuiRunning;
+extern int flagIsPrefix;
 
 extern HANDLE glOutputMutex;
 extern HANDLE glThreadMutex;

@@ -21,6 +21,7 @@ char errorBuffer[512];
 int keepRunning = 1;
 int isGuiRunning = 1;
 int flagNOGUI = 0;
+int flagIsPrefix = 1;
 
 HANDLE glOutputMutex;
 HANDLE glThreadMutex;
@@ -82,9 +83,14 @@ UserInfo *ReadUsersFromFile(char *filename, int *nUsers){
 // сообщения пользователей во время старта сессии - а читать их по требованию
 int main(int argc, char **argv){
     if(argc != 1){
-        if(strncmp(argv[1], "-NO-GUI", 8) == 0){
-            flagNOGUI = 1;
-            isGuiRunning = 0;
+        for(int i = 1; i < argc; i++){
+            if(strncmp(argv[1], "-NO-GUI", 8) == 0){
+                flagNOGUI = 1;
+                isGuiRunning = 0;
+            }
+            if(strncmp(argv[1], "-NO-PREF", 9) == 0){
+                flagIsPrefix = 0;
+            }
         }
     }
     if(flagNOGUI == 0){

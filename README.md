@@ -53,4 +53,4 @@ To server user list you need to run `husers.exe` and restart server.
 
 ![8.jpg](ForReadme/8.jpg)
 
-To compile server you need iup(https://www.tecgraf.puc-rio.br/iup/) for GUI.
+To compile server you need iup(https://www.tecgraf.puc-rio.br/iup/) for GUI. Put headers in `Graphics` dir and lib files in `lib`

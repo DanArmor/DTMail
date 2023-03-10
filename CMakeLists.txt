@@ -29,6 +29,4 @@ target_link_libraries(pop3service PRIVATE -lws2_32 -liup -lgdi32 -lcomdlg32 -lco
 add_executable(mailserver src/mailserver.c)
 add_executable(husers src/husers.c)
 
-FILE(COPY etc/iup.rc DESTINATION "${CMAKE_BINARY_DIR}")
-FILE(COPY users.data DESTINATION "${CMAKE_BINARY_DIR}")
 target_link_libraries(mailserver PRIVATE guiutils smtpservice pop3service utils -lws2_32 -liup -lgdi32 -lcomdlg32 -lcomctl32 -luuid -loleaut32 -lole32)

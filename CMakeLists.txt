@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.24)
 
 project(DTMail
     LANGUAGES C
-    VERSION 0.4
+    VERSION 1.0
 )
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -15,6 +15,7 @@ include_directories(inc)
 link_directories(lib)
 
 add_library(utils src/util.c)
+
 add_library(guiutils src/guiutil.c)
 add_library(smtpservice src/smtpservice.c)
 add_library(pop3service src/pop3service.c)
@@ -26,6 +27,7 @@ target_link_libraries(smtpservice PRIVATE base64 -lws2_32 -liup -lgdi32 -lcomdlg
 target_link_libraries(pop3service PRIVATE -lws2_32 -liup -lgdi32 -lcomdlg32 -lcomctl32 -luuid -loleaut32 -lole32)
 
 add_executable(mailserver src/mailserver.c)
+add_executable(husers src/husers.c)
 
 FILE(COPY etc/iup.rc DESTINATION "${CMAKE_BINARY_DIR}")
 FILE(COPY users.data DESTINATION "${CMAKE_BINARY_DIR}")

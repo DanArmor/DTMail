@@ -54,19 +54,6 @@ int maxFunc(int a, int b);
 #define POP3_SERVER_PORT 110
 #define SMTP_SERVER_PORT 25
 
-#define MY_ERROR(msg, status)\
-    do{\
-        fprintf(stderr, "ERROR: %s. Status: %d\n", msg, status);\
-        exit(status);\
-    }while(0)
-
-#define USER_DATA_FILE "users.data"
-#define MAIL_DATA_FILE "mail.data"
-#define MAIL_SUPPORT_FILE "mail.data.tmp"
-#define BUFF_SIZE 26548
-#define NAME_MAX_SIZE 256
-#define PASS_MAX_SIZE 256
-
 #define PROTOCOL_SMTP 1
 #define PROTOCOL_POP3 2
 
@@ -84,6 +71,19 @@ int maxFunc(int a, int b);
     UNLOCK_GUI();\
     UNLOCK_TH();\
     return IUP_DEFAULT
+
+#define MY_ERROR(msg, status)\
+    do{\
+        fprintf(stderr, "ERROR: %s. Status: %d\n", msg, status);\
+        exit(status);\
+    }while(0)
+
+#define MAIL_DATA_FILE "mail.data"
+#define MAIL_SUPPORT_FILE "mail.data.tmp"
+#define BUFF_SIZE 26548
+#define NAME_MAX_SIZE 256
+#define PASS_MAX_SIZE 256
+#define USER_DATA_FILE "users.data"
 
 typedef struct SMTPData{
     char *FROM;
@@ -196,7 +196,6 @@ extern Ihandle *glGUISessionBox;
 extern Ihandle *glGUISessionButtonsBox;
 extern Ihandle *glGUISessionTextIncreaseSizeButton;
 extern Ihandle *glGUISessionTextDecreaseSizeButton;
-
 
 // GUI
 int LoadThreadList(void);

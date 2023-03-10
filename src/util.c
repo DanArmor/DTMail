@@ -120,7 +120,7 @@ void StopProcessingClient(LocalThreadInfo *lThInfo){
     PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
 
     lThInfo->sessionLog.isDead = 1;
-    WriteToSession(&lThInfo->sessionLog, "======END OF SESSION======\015\012", 30);
+    WriteToSession(&lThInfo->sessionLog, "======END OF SESSION======\015\012", 28);
     MigrateDeadSession(&lThInfo->sessionLog);
     closesocket(lThInfo->pthreadInfo->client);
     free(lThInfo->buff);

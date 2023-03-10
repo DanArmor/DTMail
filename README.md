@@ -2,7 +2,7 @@
 
 [Compiled version](https://github.com/DanArmor/DTMail/releases)
 
-DTMail (Dev&Test Mail) - Mail Server (SMTP/POP3) for developers of mail clients for local testing and developing purposes. Created with WinAPI - so you can run it only on Windows x64.
+*DTMail (Dev&Test Mail)* - Mail Server (SMTP/POP3) for developers of mail clients for local testing and developing purposes. Created with WinAPI - so you can run it only on Windows x64.
 
 You're beginner developer, who decided to practice by creating mail POP3/SMTP client or just doing that as fun task? That little server will help you to test your client locally.
 

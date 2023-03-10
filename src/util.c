@@ -97,9 +97,12 @@ void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int pro
 
     InitSessionLog(lThInfo);
 
+    WriteToSession(&lThInfo->sessionLog, "======START OF SESSION======\015\012", 30);
+
     UNLOCK_TH();
 
     LoadThreadList();
+    DisplaySession();
 }
 
 void MigrateDeadSession(SessionLog *sessionLog){
@@ -115,6 +118,7 @@ void StopProcessingClient(LocalThreadInfo *lThInfo){
     PLTH_REPORT(lThInfo, "Terminating.\nBuffer data:\n===\n%s===\n", lThInfo->buff);
 
     lThInfo->sessionLog.isDead = 1;
+    WriteToSession(&lThInfo->sessionLog, "======END OF SESSION======\015\012", 28);
     MigrateDeadSession(&lThInfo->sessionLog);
     closesocket(lThInfo->pthreadInfo->client);
     free(lThInfo->buff);
@@ -137,7 +141,9 @@ void StopProcessingClient(LocalThreadInfo *lThInfo){
     }
     CloseHandle(lThInfo->threadInfo.handle);
     UNLOCK_TH();
+
     LoadThreadList();
+    DisplaySession();
 }
 
 int ReadUntilCRLF(SOCKET sock, char *buff, int *size){

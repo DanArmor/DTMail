@@ -132,8 +132,8 @@ int main(int argc, char **argv){
         glGUIThreadList = IupList(NULL);
         IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
         IupSetAttribute(glGUIThreadList, "EXPAND", "NO");
-        IupSetAttribute(glGUIThreadList, "SIZE", "100x");
-        IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
+        IupSetAttribute(glGUIThreadList, "MINSIZE", "150x");
+        IupSetAttribute(glGUIThreadList, "VISIBLELINES", "16");
 
         glGUISessionText = IupText(NULL);
         IupSetAttribute(glGUISessionText, "READONLY", "YES");
@@ -182,7 +182,7 @@ int main(int argc, char **argv){
     // новые соединения
 
     LOCK_OUT();
-    printf("Waiting for all threads to terminate. . . 2000ms for each connection. . .\n");
+    printf("Waiting for all threads to terminate. . . 1000ms for each connection. . .\n");
     UNLOCK_OUT();
     int foundRunning = 0;
     while(1){
@@ -191,7 +191,7 @@ int main(int argc, char **argv){
             if(glPool[i].isFree == 0){
                 UNLOCK_TH();
                 foundRunning = 1;
-                if(WaitForSingleObject(glPool[i].handle, 2000) == WAIT_TIMEOUT){
+                if(WaitForSingleObject(glPool[i].handle, 1000) == WAIT_TIMEOUT){
                     LOCK_TH();
                     closesocket(glPool[i].client);
                     UNLOCK_TH();

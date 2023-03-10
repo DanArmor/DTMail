@@ -31,11 +31,14 @@ void SendERR(LocalThreadInfo *lThInfo, char *msg){
     }
     send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
 
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
     WriteToSession(&lThInfo->sessionLog, "-ERR", 4);
     if(msg != NULL){
         WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
     }
     WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
 }
 
 void SendOK(LocalThreadInfo *lThInfo, char *msg){
@@ -45,11 +48,14 @@ void SendOK(LocalThreadInfo *lThInfo, char *msg){
     }
     send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
 
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
     WriteToSession(&lThInfo->sessionLog, "+OK", 3);
     if(msg != NULL){
         WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
     }
     WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
 }
 
 DWORD POP3CommandUSER(LocalThreadInfo *lThInfo){
@@ -177,6 +183,7 @@ DWORD WINAPI POP3CommandLIST(LocalThreadInfo *lThInfo){
 
     send(lThInfo->threadInfo.client, ".\015\012", 3, 0x0);
     WriteToSession(&lThInfo->sessionLog, ".\015\012", 3);
+    DisplaySession();
 
     return 0;
 }
@@ -206,6 +213,7 @@ DWORD WINAPI POP3CommandRETR(LocalThreadInfo *lThInfo){
                 fread(dataP, dataSize, 1, f);
                 send(lThInfo->threadInfo.client, dataP, dataSize, 0x0);
                 WriteToSession(&lThInfo->sessionLog, dataP, dataSize);
+                DisplaySession();
                 free(dataP);
                 wasFound = 1;
                 break;
@@ -322,6 +330,7 @@ DWORD WINAPI ProcessPOP3(LPVOID lpParameter){
         }
 
         PLTH_REPORT(&lThInfo, "New message: %s", lThInfo.buff);
+        WriteToSessionPrefix(&lThInfo.sessionLog, 0);
         WriteToSession(&lThInfo.sessionLog, lThInfo.buff, lThInfo.size);
 
         if(IsServerCommand(&lThInfo, "USER")){

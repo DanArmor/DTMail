@@ -19,10 +19,15 @@ DWORD WINAPI SMTPService(LPVOID lpParameter);
 
 void SMTPUp(void);
 
-void SMTPSendOK(SOCKET sock, char *msg);
-void SMTPSendNeedMoreData(SOCKET sock, char *msg);
-void SMTPSendTempError(SOCKET sock, char *msg);
-void SMTPSendServerError(SOCKET sock, char *msg);
+void SMTPSendOK(LocalThreadInfo *lThInfo, char *msg);
+void SMTPSendNeedMoreData(LocalThreadInfo *lThInfo, char *msg);
+void SMTPSendTempError(LocalThreadInfo *lThInfo, char *msg);
+void SMTPSendServerError(LocalThreadInfo *lThInfo, char *msg);
+
+void SMTPSocketSendOK(SOCKET sock, char *msg);
+void SMTPSocketSendNeedMoreData(SOCKET sock, char *msg);
+void SMTPSocketSendTempError(SOCKET sock, char *msg);
+void SMTPSocketSendServerError(SOCKET sock, char *msg);
 
 
 

@@ -2,7 +2,7 @@
 
 #include "base64.h"
 
-void SMTPSendOK(SOCKET sock, char *msg){
+void SMTPSocketSendOK(SOCKET sock, char *msg){
     send(sock, "250", 3, 0x0);
     if(msg != NULL){
         send(sock, msg, strlen(msg), 0x0);
@@ -10,7 +10,7 @@ void SMTPSendOK(SOCKET sock, char *msg){
     send(sock, "\015\012", 2, 0x0);
 }
 
-void SMTPSendNeedMoreData(SOCKET sock, char *msg){
+void SMTPSocketSendNeedMoreData(SOCKET sock, char *msg){
     send(sock, "350", 3, 0x0);
     if(msg != NULL){
         send(sock, msg, strlen(msg), 0x0);
@@ -18,7 +18,7 @@ void SMTPSendNeedMoreData(SOCKET sock, char *msg){
     send(sock, "\015\012", 2, 0x0);
 }
 
-void SMTPSendTempError(SOCKET sock, char *msg){
+void SMTPSocketSendTempError(SOCKET sock, char *msg){
     send(sock, "450", 3, 0x0);
     if(msg != NULL){
         send(sock, msg, strlen(msg), 0x0);
@@ -26,12 +26,80 @@ void SMTPSendTempError(SOCKET sock, char *msg){
     send(sock, "\015\012", 2, 0x0);
 }
 
-void SMTPSendServerError(SOCKET sock, char *msg){
+void SMTPSocketSendServerError(SOCKET sock, char *msg){
     send(sock, "550", 3, 0x0);
     if(msg != NULL){
         send(sock, msg, strlen(msg), 0x0);
     }
     send(sock, "\015\012", 2, 0x0);
+}
+
+void SMTPSendOK(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "250", 3, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "250", 3);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
+}
+
+void SMTPSendNeedMoreData(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "350", 3, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "350", 3);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
+}
+
+void SMTPSendTempError(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "450", 3, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "450", 3);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
+}
+
+void SMTPSendServerError(LocalThreadInfo *lThInfo, char *msg){
+    send(lThInfo->threadInfo.client, "550", 3, 0x0);
+    if(msg != NULL){
+        send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
+    }
+    send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
+
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "550", 3);
+    if(msg != NULL){
+        WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
+    }
+    WriteToSession(&lThInfo->sessionLog, "\015\012", 2);
+
+    DisplaySession();
 }
 
 
@@ -41,7 +109,7 @@ DWORD WINAPI SMTPCommandEHLO(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        SMTPSendNeedMoreData(lThInfo->threadInfo.client, "should provide user name");
+        SMTPSendNeedMoreData(lThInfo, "should provide user name");
         return 1;
     }
     int startOfName = index;
@@ -61,7 +129,7 @@ DWORD WINAPI SMTPCommandMAILFROM(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        SMTPSendNeedMoreData(lThInfo->threadInfo.client, " should provide mailbox FROM");
+        SMTPSendNeedMoreData(lThInfo, " should provide mailbox FROM");
         return 1;
     }
     int startOfName = index;
@@ -86,7 +154,7 @@ DWORD WINAPI SMTPCommandRCPTTO(LocalThreadInfo *lThInfo){
         ;
     }
     if(lThInfo->buff[index] == '\015'){
-        SMTPSendNeedMoreData(lThInfo->threadInfo.client, " should provide mailbox TO");
+        SMTPSendNeedMoreData(lThInfo, " should provide mailbox TO");
         return 1;
     }
     int startOfName = index;
@@ -107,6 +175,8 @@ DWORD WINAPI SMTPCommandRCPTTO(LocalThreadInfo *lThInfo){
 
 DWORD WINAPI SMTPCommandDATA(LocalThreadInfo *lThInfo){
     send(lThInfo->threadInfo.client, "354 provide message data. End with CRLF.CRLF\015\012", 46, 0x0);
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "354 provide message data. End with CRLF.CRLF\015\012", 46);
     if(lThInfo->smtpData->DATA == NULL){
         lThInfo->smtpData->DATA = calloc(BUFF_SIZE, sizeof(char));
         lThInfo->smtpData->buffSize = BUFF_SIZE;
@@ -129,6 +199,9 @@ DWORD WINAPI SMTPCommandDATA(LocalThreadInfo *lThInfo){
             } else {
                 PLTH_REPORT(lThInfo, "Got mail. Preview:\n%s", lThInfo->smtpData->DATA);
             }
+
+            WriteToSessionPrefix(&lThInfo->sessionLog, 0);
+            WriteToSession(&lThInfo->sessionLog, lThInfo->smtpData->DATA, lThInfo->smtpData->dataSize);
 
             LOCK_FL();
 
@@ -167,6 +240,10 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     lThInfo->havePass = 0;
     lThInfo->haveUser = 0;
     send(lThInfo->threadInfo.client, "334 VXNlcm5hbWU6\015\012", 18, 0x0);
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "334 VXNlcm5hbWU6\015\012", 18);
+    DisplaySession();
+
     ReadUntilCRLF(lThInfo->threadInfo.client, lThInfo->buff, &lThInfo->size);
 
     int nameLen = 0;
@@ -174,6 +251,10 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     PLTH_REPORT(lThInfo, "Decoded username: %*s\n", nameLen, name);
 
     send(lThInfo->threadInfo.client, "334 UGFzc3dvcmQ6\015\012", 18, 0x0);
+    WriteToSessionPrefix(&lThInfo->sessionLog, 1);
+    WriteToSession(&lThInfo->sessionLog, "334 UGFzc3dvcmQ6\015\012", 18);
+    DisplaySession();
+
     ReadUntilCRLF(lThInfo->threadInfo.client, lThInfo->buff, &lThInfo->size);
     int passLen = 0;
     char *pass = Base64Decode(lThInfo->buff, lThInfo->size-2, &passLen);
@@ -186,7 +267,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
         if(strncmp(glUserList[index].name, name, max(strlen(glUserList[index].name), nameLen)) == 0){
             if(glUserList[index].isLogged){
                 PLTH_REPORT(lThInfo, "User already logged in(%s)\n", glUserList[index].name);
-                SMTPSendTempError(lThInfo->threadInfo.client, " User already logged in");
+                SMTPSendTempError(lThInfo, " User already logged in");
             }
             lThInfo->haveUser = 1;
             lThInfo->user = glUserList[index];
@@ -195,7 +276,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
                 lThInfo->havePass = 1;
             } else{
                 PLTH_REPORT(lThInfo, "Wrong password\n");
-                SMTPSendTempError(lThInfo->threadInfo.client, " wrong password");
+                SMTPSendTempError(lThInfo, " wrong password");
                 retStatus = 1;
             }
             break;
@@ -204,7 +285,7 @@ DWORD WINAPI SMTPCommandAUTHLOGIN(LocalThreadInfo *lThInfo){
     UNLOCK_TH();
     if(index == usersInList){
         PLTH_REPORT(lThInfo, "No such user(%*s)\n", nameLen, name);
-        SMTPSendTempError(lThInfo->threadInfo.client, " no such user");
+        SMTPSendTempError(lThInfo, " no such user");
         retStatus = 1;
     }
     free(pass);
@@ -220,6 +301,9 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
     PLTH_REPORT(&lThInfo, "Connected new SMTP client\n");
 
     send(lThInfo.threadInfo.client, "220\015\012", 5, 0x0);
+    WriteToSessionPrefix(&lThInfo.sessionLog, 1);
+    WriteToSession(&lThInfo.sessionLog, "220\015\012", 5);
+    DisplaySession();
 
     while(1){
         if(ReadUntilCRLF(lThInfo.threadInfo.client, lThInfo.buff, &lThInfo.size) != 0){
@@ -231,37 +315,40 @@ DWORD WINAPI ProcessSMTP(LPVOID lpParameter){
         if(IsServerCommand(&lThInfo, "EHLO")){
             if(SMTPCommandEHLO(&lThInfo) == 0){
                 PLTH_REPORT(&lThInfo, "Client domain name: %s\n", lThInfo.domainName);
-                SMTPSendOK(lThInfo.threadInfo.client, "-Mailserver");
-                SMTPSendOK(lThInfo.threadInfo.client, "-AUTH LOGIN");
-                SMTPSendOK(lThInfo.threadInfo.client, "-AUTH=LOGIN");
-                SMTPSendOK(lThInfo.threadInfo.client, " HELP");
+                SMTPSendOK(&lThInfo, "-Mailserver");
+                SMTPSendOK(&lThInfo, "-AUTH LOGIN");
+                SMTPSendOK(&lThInfo, "-AUTH=LOGIN");
+                SMTPSendOK(&lThInfo, " HELP");
             }
         } else if(IsServerCommand(&lThInfo, "AUTH LOGIN")){
             if(SMTPCommandAUTHLOGIN(&lThInfo) == 0){
                 send(lThInfo.threadInfo.client, "235\015\012", 5, 0x0);
+                WriteToSessionPrefix(&lThInfo.sessionLog, 1);
+                WriteToSession(&lThInfo.sessionLog, "235\015\012", 5);
+                DisplaySession();
             }
         } else if(IsServerCommand(&lThInfo, "QUIT")){
-            SMTPSendOK(lThInfo.threadInfo.client, NULL);
+            SMTPSendOK(&lThInfo, NULL);
             break;
         } else if(lThInfo.havePass){
             if(IsServerCommand(&lThInfo, "MAIL FROM:")){
                 if(SMTPCommandMAILFROM(&lThInfo) == 0){
-                    SMTPSendOK(lThInfo.threadInfo.client, NULL);
+                    SMTPSendOK(&lThInfo, NULL);
                 }
             } else if(IsServerCommand(&lThInfo, "RCPT TO:")){
                 if(SMTPCommandRCPTTO(&lThInfo) == 0){
-                    SMTPSendOK(lThInfo.threadInfo.client, NULL);
+                    SMTPSendOK(&lThInfo, NULL);
                 }
             } else if(IsServerCommand(&lThInfo, "DATA")){
                 if(SMTPCommandDATA(&lThInfo) == 0){
-                    SMTPSendOK(lThInfo.threadInfo.client, NULL);
+                    SMTPSendOK(&lThInfo, NULL);
                 }
             } else{
-                SMTPSendServerError(lThInfo.threadInfo.client, " Unknown command");
+                SMTPSendServerError(&lThInfo, " Unknown command");
             }
         } else{
             LOCK_OUT();
-            SMTPSendTempError(lThInfo.threadInfo.client, " Autorize first");
+            SMTPSendTempError(&lThInfo, " Autorize first");
             UNLOCK_OUT();
         }
     }
@@ -293,7 +380,7 @@ DWORD WINAPI SMTPService(LPVOID lpParameter){
             UNLOCK_TH();
             // Не нашелся свободный поток в пуле - отклоняем соединение
             if(wasFound == 0){
-                SMTPSendTempError(client, " Server thread glPool is full - try later");
+                SMTPSocketSendTempError(client, " Server thread glPool is full - try later");
                 closesocket(client);
             }
         }

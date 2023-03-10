@@ -37,6 +37,14 @@ void WriteToSession(SessionLog *sessionLog, char *msg, int size){
     sessionLog->session[sessionLog->size] = '\0';
 }
 
+void WriteToSessionPrefix(SessionLog *sessionLog, int isServer){
+    if(isServer){
+        WriteToSession(sessionLog, "SERVER: ", 8);
+    } else{
+        WriteToSession(sessionLog, "CLIENT: ", 8);
+    }
+}
+
 void InitServerThread(ServerThread *serverThread){
     serverThread->handle = 0;
     serverThread->client = 0;

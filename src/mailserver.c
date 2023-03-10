@@ -35,6 +35,11 @@ Ihandle *glGUIMainDlg;
 Ihandle *glGUISessionText;
 Ihandle *glGUIHorizontalMainBox;
 
+Ihandle *glGUISessionBox;
+Ihandle *glGUISessionButtonsBox;
+Ihandle *glGUISessionTextIncreaseSizeButton;
+Ihandle *glGUISessionTextDecreaseSizeButton;
+
 UserInfo *glUserList;
 int usersInList;
 
@@ -136,8 +141,19 @@ int main(int argc, char **argv){
         IupSetAttribute(glGUISessionText, "MINSIZE", "300x");
         IupSetAttribute(glGUISessionText, "EXPAND", "YES");
 
-        glGUIHorizontalMainBox = IupHbox(glGUIThreadList, glGUISessionText, NULL);
+        glGUISessionTextIncreaseSizeButton = IupButton("+", NULL);
+        glGUISessionTextDecreaseSizeButton = IupButton("-", NULL);
+        IupSetAttribute(glGUISessionTextIncreaseSizeButton, "SIZE", "50x");
+        IupSetAttribute(glGUISessionTextDecreaseSizeButton, "SIZE", "50x");
+        IupSetCallback(glGUISessionTextIncreaseSizeButton, "ACTION", (Icallback)IncreaseTextSize);
+        IupSetCallback(glGUISessionTextDecreaseSizeButton, "ACTION", (Icallback)DecreaseTextSize);
+        glGUISessionButtonsBox = IupHbox(glGUISessionTextIncreaseSizeButton, glGUISessionTextDecreaseSizeButton, NULL);
+
+        glGUISessionBox = IupVbox(glGUISessionText, glGUISessionButtonsBox, NULL);
+
+        glGUIHorizontalMainBox = IupHbox(glGUIThreadList, glGUISessionBox, NULL);
         glGUIMainBox = IupVbox(glGUIHorizontalMainBox, NULL);
+
 
         IupSetAttribute(glGUIMainBox, "NMAGRIN", "10x10");
 
@@ -145,12 +161,15 @@ int main(int argc, char **argv){
         IupSetAttribute(glGUIMainDlg, "TITLE", "DTMail");
         IupSetAttribute(glGUIMainDlg, "GAP", "10");
 
+        IupSetCallback(glGUIThreadList, "VALUECHANGED_CB", (Icallback)DisplaySession);
+
         IupShowXY(glGUIMainDlg, IUP_CENTER, IUP_CENTER);
 
         IupMainLoop();
         LOCK_GUI();
         LOCK_TH();
         isGuiRunning = 0;
+        intHandler(1);
         UNLOCK_GUI();
         UNLOCK_TH();
     }
@@ -163,7 +182,7 @@ int main(int argc, char **argv){
     // новые соединения
 
     LOCK_OUT();
-    printf("Waiting for all threads to terminate. . .\n");
+    printf("Waiting for all threads to terminate. . . 2000ms for each connection. . .\n");
     UNLOCK_OUT();
     int foundRunning = 0;
     while(1){
@@ -172,13 +191,18 @@ int main(int argc, char **argv){
             if(glPool[i].isFree == 0){
                 UNLOCK_TH();
                 foundRunning = 1;
-                WaitForSingleObject(glPool[i].handle, INFINITE);
+                if(WaitForSingleObject(glPool[i].handle, 2000) == WAIT_TIMEOUT){
+                    LOCK_TH();
+                    closesocket(glPool[i].client);
+                    UNLOCK_TH();
+                }
             }
             UNLOCK_TH();
         }
         if(foundRunning == 0){
             break;
         }
+        foundRunning = 0;
     }
     LOCK_OUT();
     printf("Server was stopped successfully\n");

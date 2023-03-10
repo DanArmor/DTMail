@@ -103,6 +103,7 @@ typedef struct SessionLog{
 } SessionLog;
 
 void WriteToSession(SessionLog *sessionLog, char *msg, int size);
+void WriteToSessionPrefix(SessionLog *sessionLog, int isServer);
 
 typedef struct LocalThreadInfo LocalThreadInfo;
 
@@ -190,8 +191,16 @@ extern SessionLog *glDeadSessions;
 extern int glDeadSessionsN;
 extern int glSessionsN;
 
+extern Ihandle *glGUISessionBox;
+extern Ihandle *glGUISessionButtonsBox;
+extern Ihandle *glGUISessionTextIncreaseSizeButton;
+extern Ihandle *glGUISessionTextDecreaseSizeButton;
+
 
 // GUI
 int LoadThreadList(void);
+int DisplaySession(void);
+int IncreaseTextSize(void);
+int DecreaseTextSize(void);
 
 #endif

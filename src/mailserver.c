@@ -20,6 +20,8 @@ char errorBuffer[512];
 
 int keepRunning = 1;
 int isGuiRunning = 1;
+int flagNOGUI = 0;
+
 HANDLE glOutputMutex;
 HANDLE glThreadMutex;
 HANDLE glFileMutex;
@@ -69,10 +71,17 @@ UserInfo *ReadUsersFromFile(char *filename, int *nUsers){
 // Нам не нужно синхронизировать приходы от SMTP и POP3 сессии, т.к. мы не будем выгружать в буферы
 // сообщения пользователей во время старта сессии - а читать их по требованию
 int main(int argc, char **argv){
-
-    if(IupOpen(&argc, &argv) == IUP_ERROR){
-        fprintf(stderr, "Error opening IUP.A");
-        return 1;
+    if(argc != 1){
+        if(strncmp(argv[1], "-NO-GUI", 8) == 0){
+            flagNOGUI = 1;
+            isGuiRunning = 0;
+        }
+    }
+    if(flagNOGUI == 0){
+        if(IupOpen(&argc, &argv) == IUP_ERROR){
+            fprintf(stderr, "Error opening IUP.A");
+            return 1;
+        }
     }
 
     glUserList = ReadUsersFromFile(USER_DATA_FILE, &usersInList);
@@ -109,35 +118,34 @@ int main(int argc, char **argv){
     HANDLE SMTP_handle = glPool[SMTP_SERVICE].handle;
     UNLOCK_TH();
 
-    const int screenWidth = 800;
-    const int screenHeight = 600;
+    if(flagNOGUI == 0){
+        glGUIThreadList = IupList(NULL);
+        IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
+        IupSetAttribute(glGUIThreadList, "EXPAND", "YES");
+        IupSetAttribute(glGUIThreadList, "SIZE", "300x");
+        IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
 
-    glGUIThreadList = IupList(NULL);
-    IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
-    IupSetAttribute(glGUIThreadList, "EXPAND", "YES");
-    IupSetAttribute(glGUIThreadList, "SIZE", "300x");
-    IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
+        glGUIUpdateListButton = IupButton("Update", NULL);
+        IupSetAttribute(glGUIUpdateListButton, "SIZE", "30");
+        IupSetCallback(glGUIUpdateListButton, "ACTION", (Icallback)LoadThreadList);
 
-    glGUIUpdateListButton = IupButton("Update", NULL);
-    IupSetAttribute(glGUIUpdateListButton, "SIZE", "30");
-    IupSetCallback(glGUIUpdateListButton, "ACTION", (Icallback)LoadThreadList);
+        glGUIMainBox = IupVbox(glGUIThreadList, glGUIUpdateListButton, NULL);
 
-    glGUIMainBox = IupVbox(glGUIThreadList, glGUIUpdateListButton, NULL);
+        IupSetAttribute(glGUIMainBox, "NMAGRIN", "10x10");
 
-    IupSetAttribute(glGUIMainBox, "NMAGRIN", "10x10");
+        glGUIMainDlg = IupDialog(glGUIMainBox);
+        IupSetAttribute(glGUIMainDlg, "TITLE", "DTMail");
+        IupSetAttribute(glGUIMainDlg, "GAP", "10");
 
-    glGUIMainDlg = IupDialog(glGUIMainBox);
-    IupSetAttribute(glGUIMainDlg, "TITLE", "DTMail");
-    IupSetAttribute(glGUIMainDlg, "GAP", "10");
+        IupShowXY(glGUIMainDlg, IUP_CENTER, IUP_CENTER);
 
-    IupShowXY(glGUIMainDlg, IUP_CENTER, IUP_CENTER);
-
-    IupMainLoop();
-    LOCK_GUI();
-    LOCK_TH();
-    isGuiRunning = 0;
-    UNLOCK_GUI();
-    UNLOCK_TH();
+        IupMainLoop();
+        LOCK_GUI();
+        LOCK_TH();
+        isGuiRunning = 0;
+        UNLOCK_GUI();
+        UNLOCK_TH();
+    }
 
     WaitForSingleObject(POP3_handle, INFINITE);
     WaitForSingleObject(SMTP_handle, INFINITE);
@@ -166,6 +174,9 @@ int main(int argc, char **argv){
     CloseHandle(glThreadMutex);
     CloseHandle(glGUIMutex);
     WSACleanup();
-    IupClose();
+
+    if(flagNOGUI == 0){
+        IupClose();
+    }
     return 0;
 }

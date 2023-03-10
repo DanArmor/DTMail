@@ -1,9 +1,7 @@
 #include "guiutil.h"
 
 int LoadThreadList(void){
-    LOCK_TH();
-    LOCK_GUI();
-    if(isGuiRunning){
+    GUI_START_SECTION
         IupSetAttribute(glGUIThreadList, "1", NULL);
         int j = 1;
         for(int i = 0; i  < MAX_CLIENTS; i++){
@@ -14,8 +12,12 @@ int LoadThreadList(void){
             }
         }
         IupSetAttribute(glGUIThreadList, "VALUE", NULL);
-    }
-    UNLOCK_GUI();
-    UNLOCK_TH();
-    return IUP_DEFAULT;
+    GUI_END_SECTION;
+}
+
+int DisplaySession(void){
+    GUI_START_SECTION;
+        
+
+    GUI_END_SECTION;
 }

@@ -74,6 +74,17 @@ int maxFunc(int a, int b);
 #define C_LF '\013'
 #define S_CRLF "\015\012"
 
+#define GUI_START_SECTION \
+    LOCK_TH();\
+    LOCK_GUI();\
+    if(isGuiRunning){
+
+#define GUI_END_SECTION \
+    }\
+    UNLOCK_GUI();\
+    UNLOCK_TH();\
+    return IUP_DEFAULT
+
 typedef struct SMTPData{
     char *FROM;
     char *TO;
@@ -82,11 +93,14 @@ typedef struct SMTPData{
     int buffSize;
 } SMTPData;
 
+typedef struct LocalThreadInfo LocalThreadInfo;
+
 typedef struct ServerThread{
     HANDLE handle;
     BOOL isFree;
     SOCKET client;
     int id;
+    LocalThreadInfo *pLocal;
 } ServerThread;
 
 // В файл будут сбрасываться только первые 3 поля
@@ -98,7 +112,7 @@ typedef struct UserInfo{
     int index;
 } UserInfo;
 
-typedef struct LocalThreadInfo{
+struct LocalThreadInfo{
     // Вид протокола
     int protocol;
     // Мы локально храним данные потока, чтобы не блокировать мьютекс
@@ -117,7 +131,7 @@ typedef struct LocalThreadInfo{
     char *domainName; // Доменное имя отправителя
     SMTPData *smtpData;
 
-} LocalThreadInfo;
+};
 
 int LoadThreadList(void);
 

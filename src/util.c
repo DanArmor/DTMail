@@ -45,6 +45,7 @@ void InitLocalThreadInfo(LocalThreadInfo *lThInfo, ServerThread *thInfo, int pro
     LOCK_TH();
     lThInfo->pthreadInfo = thInfo;
     lThInfo->threadInfo = *thInfo;
+    thInfo->pLocal = lThInfo;
     UNLOCK_TH();
     lThInfo->havePass = 0;
     lThInfo->haveUser = 0;

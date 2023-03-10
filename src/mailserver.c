@@ -32,7 +32,8 @@ ServerThread glPool[MAX_CLIENTS];
 Ihandle *glGUIThreadList;
 Ihandle *glGUIMainBox;
 Ihandle *glGUIMainDlg;
-Ihandle *glGUIUpdateListButton;
+Ihandle *glGUISessionText;
+Ihandle *glGUIHorizontalMainBox;
 
 UserInfo *glUserList;
 int usersInList;
@@ -125,15 +126,18 @@ int main(int argc, char **argv){
     if(flagNOGUI == 0){
         glGUIThreadList = IupList(NULL);
         IupSetAttribute(glGUIThreadList, "NAME", "LST_THREAD");
-        IupSetAttribute(glGUIThreadList, "EXPAND", "YES");
-        IupSetAttribute(glGUIThreadList, "SIZE", "300x");
+        IupSetAttribute(glGUIThreadList, "EXPAND", "NO");
+        IupSetAttribute(glGUIThreadList, "SIZE", "50x");
         IupSetAttribute(glGUIThreadList, "VISIBLELINES", "6");
 
-        glGUIUpdateListButton = IupButton("Update", NULL);
-        IupSetAttribute(glGUIUpdateListButton, "SIZE", "30");
-        IupSetCallback(glGUIUpdateListButton, "ACTION", (Icallback)LoadThreadList);
+        glGUISessionText = IupText(NULL);
+        IupSetAttribute(glGUISessionText, "READONLY", "YES");
+        IupSetAttribute(glGUISessionText, "MULTILINE", "YES");
+        IupSetAttribute(glGUISessionText, "MINSIZE", "300x");
+        IupSetAttribute(glGUISessionText, "EXPAND", "YES");
 
-        glGUIMainBox = IupVbox(glGUIThreadList, glGUIUpdateListButton, NULL);
+        glGUIHorizontalMainBox = IupHbox(glGUIThreadList, glGUISessionText, NULL);
+        glGUIMainBox = IupVbox(glGUIHorizontalMainBox, NULL);
 
         IupSetAttribute(glGUIMainBox, "NMAGRIN", "10x10");
 

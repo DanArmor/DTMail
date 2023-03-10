@@ -178,7 +178,8 @@ extern ServerThread glPool[MAX_CLIENTS];
 extern Ihandle *glGUIThreadList;
 extern Ihandle *glGUIMainBox;
 extern Ihandle *glGUIMainDlg;
-extern Ihandle *glGUIUpdateListButton;
+extern Ihandle *glGUISessionText;
+extern Ihandle *glGUIHorizontalMainBox;
 
 extern UserInfo *glUserList;
 extern int usersInList;

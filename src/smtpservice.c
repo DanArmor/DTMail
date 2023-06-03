@@ -52,14 +52,14 @@ void SMTPSendOK(LocalThreadInfo *lThInfo, char *msg){
 }
 
 void SMTPSendNeedMoreData(LocalThreadInfo *lThInfo, char *msg){
-    send(lThInfo->threadInfo.client, "350", 3, 0x0);
+    send(lThInfo->threadInfo.client, "354", 3, 0x0);
     if(msg != NULL){
         send(lThInfo->threadInfo.client, msg, strlen(msg), 0x0);
     }
     send(lThInfo->threadInfo.client, "\015\012", 2, 0x0);
 
     WriteToSessionPrefix(&lThInfo->sessionLog, 1);
-    WriteToSession(&lThInfo->sessionLog, "350", 3);
+    WriteToSession(&lThInfo->sessionLog, "354", 3);
     if(msg != NULL){
         WriteToSession(&lThInfo->sessionLog, msg, strlen(msg));
     }

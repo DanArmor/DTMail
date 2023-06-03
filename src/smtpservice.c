@@ -11,7 +11,7 @@ void SMTPSocketSendOK(SOCKET sock, char *msg){
 }
 
 void SMTPSocketSendNeedMoreData(SOCKET sock, char *msg){
-    send(sock, "350", 3, 0x0);
+    send(sock, "354", 3, 0x0);
     if(msg != NULL){
         send(sock, msg, strlen(msg), 0x0);
     }
